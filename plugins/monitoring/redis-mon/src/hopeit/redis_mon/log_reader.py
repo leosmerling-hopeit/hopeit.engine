@@ -98,7 +98,7 @@ class LogFileHandler(FileSystemEventHandler):
             return results
         finally:
             lock.release()
-            asyncio.sleep(1)
+            await asyncio.sleep(1)
 
 
 async def __init_event__(context: EventContext):
