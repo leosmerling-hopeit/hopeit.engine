@@ -14,7 +14,7 @@ from hopeit.app.logger import app_extra_logger
 
 from watchdog.observers import Observer
 from watchdog.events import LoggingEventHandler, FileSystemEventHandler
-from hopeit.redis_mon import LogEventData, LogBatch, get_int
+from hopeit.redis_mon import redis, connect_redis, LogEventData, LogBatch, get_str
 
 
 logger, extra = app_extra_logger()
@@ -22,15 +22,7 @@ logger, extra = app_extra_logger()
 __steps__ = ['process_log_data']
 
 
-redis: Optional[aioredis.Redis] = None
 lock = asyncio.Lock()
-
-
-async def _connect_redis(context: EventContext):
-    global redis
-    if redis is None:
-        logger.info(context, "Connecting monitoring plugin...")
-        redis = await aioredis.create_redis('redis://localhost:6379')
 
 
 class LogFileHandler(FileSystemEventHandler):
@@ -43,14 +35,13 @@ class LogFileHandler(FileSystemEventHandler):
         self.last_access = {}
         self.loop = asyncio.get_event_loop()
 
-    def on_any_event(self, event):
-        print("EVENT", event)
+    def on_modified(self, event):
         try:
             if self.context.app_key.replace('.', '_') in event.src_path:
                 return
             asyncio.run_coroutine_threadsafe(self._on_event(event), self.loop)
         except Exception as e:
-            print(e)
+            logger.error(self.context, e)
 
     async def _on_event(self, event):
         try:
@@ -58,11 +49,10 @@ class LogFileHandler(FileSystemEventHandler):
             await self._open_file(event)
             line = await self._read_line(event)
             while line:
-                print(">>>>>>>>> ", line)
                 await self._emit(line)
                 line = await self._read_line(event)
-        except Exceoption as e:
-            print(e)
+        except Exception as e:
+            logger.error(self.context, e)
         finally:
             lock.release()
             await asyncio.sleep(1)
@@ -71,41 +61,40 @@ class LogFileHandler(FileSystemEventHandler):
         src_path = event.src_path
         self.last_access[src_path] = datetime.now().timestamp()
         if self.open_files.get(src_path) is None:
-            skip_lines = await get_int(redis, f'{self.context.app_key}.{src_path}.lines')
-            print("OPEN", src_path, skip_lines)
+            checkpoint = await get_str(f'{self.context.app_key}.{src_path}.checkpoint')
+            logger.info(self.context, "Opening log file...", extra=extra(src_path=src_path, checkpoint=checkpoint))
             self.open_files[src_path] = open(src_path, 'r')
-            for _ in range(skip_lines):
+            if checkpoint:
                 line = self.open_files[src_path].readline()
-                if line is None:
-                    break
+                while line and (line[:24] < checkpoint):
+                    line = self.open_files[src_path].readline()
 
-    def close_unused_files(self):
+    def close_inactive_files(self):
         exp = datetime.now().timestamp()
         for key, last_ts in list(self.last_access.items()):
-            print("LAST USED", key, last_ts)
-            if (last_ts + 60.0) < exp:
+            if (last_ts + 300.0) < exp:
                 try:
-                    print("CLOSING", key)
+                    logger.info(self.context, "Closing inactive file...", extra=extra(src_path=key))
                     self.open_files[key].close()
                 except Exception as e:
-                    print(e)
+                    logger.error(self.context, e)
                 del self.open_files[key]
                 del self.last_access[key]
 
     async def _read_line(self, event):
         src_path = event.src_path
         line = self.open_files[src_path].readline()
-        if line is not None:
-            key = f'{self.context.app_key}.{src_path}.lines'
-            await redis.incr(key) #TODO: expire
-            await redis.expire(key, 3600)
+        if line:
+            key = f'{self.context.app_key}.{src_path}'
+            await redis().set(f'{key}.checkpoint', line[:24])
+            await redis().expire(f'{key}.checkpoint', 3600)
         return line
 
     async def _emit(self, line: str):
         assert lock.locked()
         self.batch.append(line)
 
-    async def get_and_reset(self):
+    async def get_and_reset_batch(self):
         try:
             await lock.acquire()
             results = self.batch
@@ -117,11 +106,11 @@ class LogFileHandler(FileSystemEventHandler):
 
 
 async def __init_event__(context: EventContext):
-    await _connect_redis(context)
+    await connect_redis(logger, context)
 
 
 async def __service__(context: EventContext) -> Spawn[LogBatch]:
-    await _connect_redis(context)
+    await connect_redis(logger, context)
     path = context.env['log_reader']['path']
     event_handler = LogFileHandler(path, context)
     observer = Observer()
@@ -129,9 +118,9 @@ async def __service__(context: EventContext) -> Spawn[LogBatch]:
     observer.start()
     try:
         while True:
-            await asyncio.sleep(5)
-            yield LogBatch(data=await event_handler.get_and_reset())
-            event_handler.close_unused_files()
+            await asyncio.sleep(1)
+            yield LogBatch(data=await event_handler.get_and_reset_batch())
+            event_handler.close_inactive_files()
     except KeyboardInterrupt:
         observer.stop()
     observer.join()
@@ -151,40 +140,48 @@ async def _process_log_entry(entry: str, context: EventContext):
     try:
         x = entry.split(' | ')
         ts, level, app_info, msg, extras = x[0], x[1], x[2], x[3], x[4:]
-        app_name, app_version, event_name, host_name, pid = app_info.split(' ')
-        extra_items = _parse_extras(extras)
-        print("***********", app_name, app_version, msg, extra_items.get('track.request_id'))
-        req_id = extra_items.get('track.request_id')
-        await _process_counters(req_id, msg, context)
-        await _process_duration(req_id, msg, extra_items, context)
+        app_info_components = app_info.split(' ')
+        if len(app_info_components) == 5:
+            app_name, app_version, event_name, host_name, pid = app_info_components
+            extra_items = _parse_extras(extras)
+            req_id = extra_items.get('track.request_id')
+            await _process_counters(req_id, event_name, msg, context)
+            await _process_duration(req_id, event_name, msg, extra_items, context)
+            await _process_counters(req_id, '*', msg, context)
+            await _process_duration(req_id, '*', msg, extra_items, context)
+            await _process_counters('*', event_name, msg, context)
+            await _process_duration('*', event_name, msg, extra_items, context)
     except Exception as e:
-        print(e)
+        logger.error(context, e)
 
 
-async def _process_counters(req_id: str, msg: str, context: EventContext):
+async def _process_counters(req_id: str, event_name: str, msg: str, context: EventContext):
+    msg = msg.strip(' ')
     if req_id and (msg in {'START', 'DONE', 'FAILED'}):
-        key = f'{context.app_key}.{req_id}.{msg}.count'
-        res = await redis.incr(key)  # TODO: set TTL to 24h
-        await redis.expire(key, 3600)
-        print("========", key, res)
+        key = f'{context.app_key}.{req_id}.{event_name}.{msg}.count'
+        await _update(redis().incr, key)
 
 
-async def _process_duration(req_id: str, msg: str, extra_items: Dict[str, str], context: EventContext):
+async def _process_duration(req_id: str, event_name: str, msg: str, extra_items: Dict[str, str], context: EventContext):
     duration = extra_items.get('metrics.duration')
     if duration and req_id and (msg == 'DONE'):
-        key = f'{context.app_key}.{req_id}.duration'
-        res = await redis.incr(f'{key}.count')
-        res = await redis.incrbyfloat(f'{key}.sum', float(duration))
-        res = await redis.set(f'{key}.last', float(duration))
-        await redis.expire('{key}.count', 3600)
-        await redis.expire('{key}.sum', 3600)
-        await redis.expire('{key}.last', 3600)
-        print("========", key, res)
+        key = f'{context.app_key}.{req_id}.{event_name}.duration'
+        await _update(redis().incr, f'{key}.count')
+        await _update(redis().incrbyfloat, f'{key}.sum', float(duration))
+        await _update(redis().set, f'{key}.last', float(duration))
+
+
+async def _update(func, key: str, *args, expiration: int = 3600):
+    try:
+        await func(key, *args)
+        if expiration:
+            await redis().expire(key, expiration)
+    except Exception as e:
+        logger.error(context, e)
 
 
 async def process_log_data(payload: LogBatch, context: EventContext):
-    assert redis, "No hay redis"
-    print('==============================================================')
+    assert redis(), "Redis not connected"
     try:
         await lock.acquire()
         for entry in payload.data:
@@ -192,4 +189,3 @@ async def process_log_data(payload: LogBatch, context: EventContext):
     finally:
         lock.release()
         await asyncio.sleep(1)
-    print('==============================================================')
