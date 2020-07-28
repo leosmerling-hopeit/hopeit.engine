@@ -120,8 +120,10 @@ async def __service__(context: EventContext) -> Spawn[LogBatch]:
     observer.start()
     try:
         while True:
-            await asyncio.sleep(10)
-            yield LogBatch(data=await event_handler.get_and_reset_batch())
+            await asyncio.sleep(1)
+            batch = await event_handler.get_and_reset_batch()
+            if len(batch) > 0:
+                yield LogBatch(data=batch)
             event_handler.close_inactive_files()
     except KeyboardInterrupt:
         observer.stop()
@@ -205,6 +207,7 @@ async def _update(func, key: str, *args, expiration: int = 3600):
 
 async def process_log_data(payload: LogBatch, context: EventContext):
     assert redis(), "Redis not connected"
+    logger.info(context, "Processing batch of log entries...", extra=extra(batch_size=len(payload.data)))
     try:
         await lock.acquire()
         for entry in payload.data:
