@@ -4,7 +4,7 @@ import logging
 from copy import copy
 from asyncio import Lock
 from typing import Dict, List, Tuple, Optional
-from collections import defaultdict
+from datetime import datetime
 
 import aioredis
 
@@ -40,13 +40,14 @@ class LogFileHandler(FileSystemEventHandler):
         self.context = context
         self.batch = []
         self.open_files = {}
+        self.last_access = {}
         self.loop = asyncio.get_event_loop()
 
     def on_any_event(self, event):
+        print("EVENT", event)
         try:
             if self.context.app_key.replace('.', '_') in event.src_path:
                 return
-            print('<<<<<<<<<<', event.src_path)
             asyncio.run_coroutine_threadsafe(self._on_event(event), self.loop)
         except Exception as e:
             print(e)
@@ -68,6 +69,7 @@ class LogFileHandler(FileSystemEventHandler):
 
     async def _open_file(self, event):
         src_path = event.src_path
+        self.last_access[src_path] = datetime.now().timestamp()
         if self.open_files.get(src_path) is None:
             skip_lines = await get_int(redis, f'{self.context.app_key}.{src_path}.lines')
             print("OPEN", src_path, skip_lines)
@@ -76,6 +78,19 @@ class LogFileHandler(FileSystemEventHandler):
                 line = self.open_files[src_path].readline()
                 if line is None:
                     break
+
+    def close_unused_files(self):
+        exp = datetime.now().timestamp()
+        for key, last_ts in list(self.last_access.items()):
+            print("LAST USED", key, last_ts)
+            if (last_ts + 60.0) < exp:
+                try:
+                    print("CLOSING", key)
+                    self.open_files[key].close()
+                except Exception as e:
+                    print(e)
+                del self.open_files[key]
+                del self.last_access[key]
 
     async def _read_line(self, event):
         src_path = event.src_path
@@ -116,6 +131,7 @@ async def __service__(context: EventContext) -> Spawn[LogBatch]:
         while True:
             await asyncio.sleep(5)
             yield LogBatch(data=await event_handler.get_and_reset())
+            event_handler.close_unused_files()
     except KeyboardInterrupt:
         observer.stop()
     observer.join()
