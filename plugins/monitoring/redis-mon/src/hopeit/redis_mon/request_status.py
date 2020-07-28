@@ -5,7 +5,7 @@ from hopeit.app.api import event_api
 from hopeit.app.context import EventContext
 from hopeit.app.logger import app_extra_logger
 
-from hopeit.redis_mon import RequestStats, get_int, get_float, redis, connect_redis
+from hopeit.redis_mon import RequestStats, get_int, get_float, get_opt_ts, redis, connect_redis
 
 logger, extra = app_extra_logger()
 
@@ -33,6 +33,9 @@ async def query_status(payload: None, context: EventContext,
         prefix = f'{context.app_key}.{request_id}.{event_name}'
         return RequestStats(
             request_id=request_id,
+            request_ts=await get_opt_ts(f'{prefix}.request_ts.last'),
+            last_event_ts=await get_opt_ts(f'{prefix}.event_ts.last', '%Y-%m-%d %H:%M:%S,%f'),
+            processed_ts=await get_opt_ts(f'{prefix}.processed_ts.last'),
             event_name=event_name,
             started=await get_int(f'{prefix}.START.count'),
             done=await get_int(f'{prefix}.DONE.count'),
@@ -42,4 +45,4 @@ async def query_status(payload: None, context: EventContext,
             duration_last=await get_float(f'{prefix}.duration.last')
         )
     except Exception as e:
-        print(e)
+        logger.error(context, e)

@@ -4,7 +4,7 @@ import logging
 from copy import copy
 from asyncio import Lock
 from typing import Dict, List, Tuple, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 import aioredis
 
@@ -34,18 +34,19 @@ class LogFileHandler(FileSystemEventHandler):
         self.open_files = {}
         self.last_access = {}
         self.loop = asyncio.get_event_loop()
+        self.pending = set()
 
     def on_modified(self, event):
         try:
-            if self.context.app_key.replace('.', '_') in event.src_path:
-                return
-            asyncio.run_coroutine_threadsafe(self._on_event(event), self.loop)
+            if (not event.src_path in self.pending) and (event.src_path[-4:] == ".log"):
+                asyncio.run_coroutine_threadsafe(self._on_event(event), self.loop)
         except Exception as e:
             logger.error(self.context, e)
 
     async def _on_event(self, event):
         try:
             await lock.acquire()
+            self.pending.add(event.src_path)
             await self._open_file(event)
             line = await self._read_line(event)
             while line:
@@ -54,6 +55,7 @@ class LogFileHandler(FileSystemEventHandler):
         except Exception as e:
             logger.error(self.context, e)
         finally:
+            self.pending.remove(event.src_path)
             lock.release()
             await asyncio.sleep(1)
 
@@ -118,7 +120,7 @@ async def __service__(context: EventContext) -> Spawn[LogBatch]:
     observer.start()
     try:
         while True:
-            await asyncio.sleep(1)
+            await asyncio.sleep(10)
             yield LogBatch(data=await event_handler.get_and_reset_batch())
             event_handler.close_inactive_files()
     except KeyboardInterrupt:
@@ -145,39 +147,60 @@ async def _process_log_entry(entry: str, context: EventContext):
             app_name, app_version, event_name, host_name, pid = app_info_components
             extra_items = _parse_extras(extras)
             req_id = extra_items.get('track.request_id')
+            req_ts = extra_items.get('track.request_ts')
+            await _process_timestamps(req_id, event_name, msg, req_ts, ts, context)
             await _process_counters(req_id, event_name, msg, context)
             await _process_duration(req_id, event_name, msg, extra_items, context)
+            await _process_timestamps(req_id, '*', msg, req_ts, ts, context)
             await _process_counters(req_id, '*', msg, context)
             await _process_duration(req_id, '*', msg, extra_items, context)
+            await _process_timestamps('*', event_name, msg, req_ts, ts, context)
             await _process_counters('*', event_name, msg, context)
             await _process_duration('*', event_name, msg, extra_items, context)
     except Exception as e:
         logger.error(context, e)
 
 
+async def _process_timestamps(req_id: str, event_name: str, msg: str, req_ts: str, ts: str, 
+                              context: EventContext):
+    try:
+        key = f'{context.app_key}.{req_id}.{event_name}'
+        if req_ts and req_id and (msg == 'START'):
+            await _update(redis().set, f'{key}.request_ts.last', req_ts)
+        now_ts = datetime.now(tz=timezone.utc).isoformat()
+        await _update(redis().set, f'{key}.processed_ts.last', now_ts)
+        last_ts = await get_str(f'{key}.event_ts.last')
+        if ts > last_ts:
+            await _update(redis().set, f'{key}.event_ts.last', ts)
+    except Exception as e:
+        logger.error(context, e)
+
+
 async def _process_counters(req_id: str, event_name: str, msg: str, context: EventContext):
-    msg = msg.strip(' ')
-    if req_id and (msg in {'START', 'DONE', 'FAILED'}):
-        key = f'{context.app_key}.{req_id}.{event_name}.{msg}.count'
-        await _update(redis().incr, key)
+    try:
+        if req_id and (msg in {'START', 'DONE', 'FAILED'}):
+            key = f'{context.app_key}.{req_id}.{event_name}.{msg}.count'
+            await _update(redis().incr, key)
+    except Exception as e:
+        logger.error(context, e)
 
 
 async def _process_duration(req_id: str, event_name: str, msg: str, extra_items: Dict[str, str], context: EventContext):
-    duration = extra_items.get('metrics.duration')
-    if duration and req_id and (msg == 'DONE'):
-        key = f'{context.app_key}.{req_id}.{event_name}.duration'
-        await _update(redis().incr, f'{key}.count')
-        await _update(redis().incrbyfloat, f'{key}.sum', float(duration))
-        await _update(redis().set, f'{key}.last', float(duration))
+    try:
+        duration = extra_items.get('metrics.duration')
+        if duration and req_id and (msg == 'DONE'):
+            key = f'{context.app_key}.{req_id}.{event_name}.duration'
+            await _update(redis().incr, f'{key}.count')
+            await _update(redis().incrbyfloat, f'{key}.sum', float(duration))
+            await _update(redis().set, f'{key}.last', float(duration))
+    except Exception as e:
+        logger.error(context, e)
 
 
 async def _update(func, key: str, *args, expiration: int = 3600):
-    try:
-        await func(key, *args)
-        if expiration:
-            await redis().expire(key, expiration)
-    except Exception as e:
-        logger.error(context, e)
+    await func(key, *args)
+    if expiration:
+        await redis().expire(key, expiration)
 
 
 async def process_log_data(payload: LogBatch, context: EventContext):
