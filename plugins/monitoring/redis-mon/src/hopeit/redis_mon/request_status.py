@@ -5,7 +5,7 @@ from hopeit.app.api import event_api
 from hopeit.app.context import EventContext
 from hopeit.app.logger import app_extra_logger
 
-from hopeit.redis_mon import RequestStats
+from hopeit.redis_mon import RequestStats, get_int, get_float
 
 logger, extra = app_extra_logger()
 
@@ -22,25 +22,26 @@ redis: Optional[aioredis.Redis] = None
 
 async def __init_event__(context: EventContext):
     global redis
-    logger.info(context, "Connecting monitoring plugin...")
-    redis = await aioredis.create_redis('redis://localhost:6379')
-
-
-async def _get_int(key):
-    v = await redis.get(key)
-    if v is None:
-        return 0
-    return int(v.decode())
+    if redis is None:
+        logger.info(context, "Connecting monitoring plugin...")
+        redis = await aioredis.create_redis_pool('redis://localhost:6379')
 
 
 async def query_status(payload: None, context: EventContext, request_id: str) -> RequestStats:
     assert redis, "No hay redis"
     try:
+        prefix = f'{context.app_key}.{request_id}'
+        duration_avg = 0.0
+        duration_count = await get_int(redis, f'{prefix}.duration.count')
+        if duration_count > 0:
+            duration_avg = (await get_float(redis, f'{prefix}.duration.sum')) / duration_count
         return RequestStats(
             request_id=request_id,
-            total=await _get_int(f'{request_id}_START'),
-            done=await _get_int(f'{request_id}_DONE'),
-            failed=await _get_int(f'{request_id}_FAILED')
+            total=await get_int(redis, f'{prefix}.START.count'),
+            done=await get_int(redis, f'{prefix}.DONE.count'),
+            failed=await get_int(redis, f'{prefix}.FAILED.count'),
+            duration_avg=duration_avg,
+            duration_last=await get_float(redis, f'{prefix}.duration.last')
         )
     except Exception as e:
         print(e)

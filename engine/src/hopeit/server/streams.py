@@ -78,7 +78,7 @@ class StreamManager:
             return self
         except (OSError, RedisError) as e:
             logger.error(__name__, e)
-            raise StreamOSError(e)
+        raise StreamOSError(e)
 
     async def close(self):
         """
