@@ -36,9 +36,19 @@ class LogFileHandler(FileSystemEventHandler):
         self.loop = asyncio.get_event_loop()
         self.lock = asyncio.Lock()
 
-    def on_deleted(self, event):
+    def on_moved(self, event):
+        print("MOVED", event)
         try:
-            if event.src_path.startswith(self.prefix):
+            if event.src_path in self.open_files:
+                self.last_access[event.src_path] = 0
+                self.close_inactive_files()
+        except Exception as e:
+            logger.error(self.context, e)
+
+    def on_deleted(self, event):
+        print("DELETED", event)
+        try:
+            if event.src_path in self.open_files:
                 self.last_access[event.src_path] = 0
                 self.close_inactive_files()
         except Exception as e:
@@ -118,23 +128,24 @@ class LogFileHandler(FileSystemEventHandler):
 
     async def _read_line(self, src_path: str):
         return self.open_files[src_path].readline()
- 
+
     async def _emit(self, lines: List[str]):
         try:
             await self.lock.acquire()
             self.batch.extend(lines)
         finally:
             self.lock.release()
-
-           
+      
     async def get_and_reset_batch(self):
-        
+     
         def _sort_batch(x):
             xs = x.split(' | ')[:5]
             try:
                 xs[4] = ['START', '', 'DONE', 'FAILED'].index(xs[4])
             except ValueError:
                 xs[4] = 1
+            except IndexError:
+                pass
             return tuple(xs)
 
         try:
