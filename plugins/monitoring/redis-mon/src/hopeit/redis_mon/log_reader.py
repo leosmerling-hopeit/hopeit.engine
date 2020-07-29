@@ -39,7 +39,6 @@ class LogFileHandler(FileSystemEventHandler):
     def on_deleted(self, event):
         try:
             if event.src_path.startswith(self.prefix):
-                print("DELETED", event)
                 self.last_access[event.src_path] = 0
                 self.close_inactive_files()
         except Exception as e:
@@ -94,13 +93,9 @@ class LogFileHandler(FileSystemEventHandler):
                             line = self.open_files[src_path].readline()
                         if line != checkpoint:
                             self.open_files[src_path].seek(pos)
-                            print("SEEK", pos)
                         logger.info(self.context, "Skip to checkpoint done.", extra=extra(src_path=src_path, checkpoint=checkpoint))
-                        print("CHECKPOINT", checkpoint)
-                        print("LINE", line)
                     else:
                         self.open_files[src_path].seek(0)
-                        print("NEWFILE", 0)
             return True
         except Exception as e:
             logger.error(self.context, e)
