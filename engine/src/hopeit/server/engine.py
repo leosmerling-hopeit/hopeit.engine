@@ -405,7 +405,8 @@ class AppEngine:
                     context = self._service_event_context(event_name=event_name, previous_context=context)
                     logger.start(context, extra=extra(prefix='service.', **log_info))
                     last_result = await self.execute(context=context, query_args=None, payload=payload)
-                    logger.done(context, extra=extra(prefix='service.', **log_info))
+                    service_info = extra(prefix='service.', **log_info)
+                    logger.done(context, extra=combined(service_info, metrics(context)))
                     if not self._running[event_name].locked():
                         logger.info(__name__, "Stopped service.", extra=extra(prefix='service.', **log_info))
                         break

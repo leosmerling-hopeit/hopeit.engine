@@ -8,18 +8,11 @@ from hopeit.dataobjects import dataobject
 from hopeit.app.context import EventContext
 
 
-_redis: Optional[aioredis.Redis] = None
-
-
-def redis():
-    return _redis
-
-
-async def connect_redis(logger, context: EventContext):
-    global _redis
-    if _redis is None:
+async def connect_redis(redis, logger, context: EventContext):
+    if redis is None:
         logger.info(context, "Connecting monitoring plugin to Redis...")
-        _redis = await aioredis.create_redis_pool('redis://localhost:6379')
+        return await aioredis.create_redis_pool('redis://localhost:6379')
+    return redis
 
 
 @dataobject
@@ -60,6 +53,7 @@ class RequestStats:
         self.pending = max(0, self.started - self.done - self.failed)
         if self.started > 0:
             self.progress = 100. * min(1.0, (self.done + self.failed) / self.started)
+        if (self.done + self.failed) > 0:
             self.success = 100. * min(1.0, self.done / (self.done + self.failed))
             self.error_rate = 100. * min(1.0, self.failed / (self.done + self.failed))
         if self.duration_count > 0:
@@ -70,29 +64,29 @@ class RequestStats:
             self.processed_lag = (self.processed_ts - self.last_event_ts).seconds
 
 
-async def get_int(key: str) -> int:
-    v = await _redis.get(key)
+async def get_int(redis, key: str) -> int:
+    v = await redis.get(key)
     if v is None:
         return 0
     return int(v.decode())
 
 
-async def get_float(key: str) -> float:
-    v = await _redis.get(key)
+async def get_float(redis, key: str) -> float:
+    v = await redis.get(key)
     if v is None:
         return 0.
     return float(v.decode())
 
 
-async def get_str(key: str) -> str:
-    v = await _redis.get(key)
+async def get_str(redis, key: str) -> str:
+    v = await redis.get(key)
     if v is None:
         return ''
     return v.decode()
 
 
-async def get_opt_ts(key: str, format_str: str = 'ISO') -> Optional[datetime]:
-    v = await _redis.get(key)
+async def get_opt_ts(redis, key: str, format_str: str = 'ISO') -> Optional[datetime]:
+    v = await redis.get(key)
     if v is None:
         return None
     if format_str == 'ISO':
