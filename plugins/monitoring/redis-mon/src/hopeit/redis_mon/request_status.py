@@ -13,8 +13,8 @@ __steps__ = ['query_status']
 
 __api__ = event_api(
     query_args=[
-        ('request_id', str, 'track.request_id'),
-        ('event_name', str, 'event_name'),
+        ('request_id', str, "track.request_id, '*' to aggregated all requests stats"),
+        ('event', str, "optional 'app_name.app_version.event_name' string, default '*' all events aggregated"),
     ],
     responses={
         200: (RequestStats, "Stats about request processed events")
@@ -29,16 +29,16 @@ async def __init_event__(context: EventContext):
 
 
 async def query_status(payload: None, context: EventContext, 
-                       request_id: str, event_name: str = '*') -> RequestStats:
+                       request_id: str, event: str = '*') -> RequestStats:
     assert redis, "Redis not connected"
     try:
-        prefix = f'{context.app_key}.{request_id}.{event_name}'
+        prefix = f'{context.app_key}.{request_id}.{event}'
         return RequestStats(
             request_id=request_id,
             request_ts=await get_opt_ts(redis, f'{prefix}.request_ts.last'),
             last_event_ts=await get_opt_ts(redis, f'{prefix}.event_ts.last', '%Y-%m-%d %H:%M:%S,%f'),
             processed_ts=await get_opt_ts(redis, f'{prefix}.processed_ts.last'),
-            event_name=event_name,
+            event=event,
             started=await get_int(redis, f'{prefix}.START.count'),
             done=await get_int(redis, f'{prefix}.DONE.count'),
             failed=await get_int(redis, f'{prefix}.FAILED.count'),

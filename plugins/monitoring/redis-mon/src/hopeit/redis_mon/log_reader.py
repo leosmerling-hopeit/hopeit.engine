@@ -11,6 +11,7 @@ import aioredis
 from hopeit.app.context import EventContext
 from hopeit.app.events import Spawn, SHUFFLE
 from hopeit.app.logger import app_extra_logger
+from hopeit.server.names import auto_path 
 
 from watchdog.observers import Observer
 from watchdog.events import LoggingEventHandler, FileSystemEventHandler
@@ -203,18 +204,19 @@ async def _process_log_entry(entry: str, context: EventContext):
             app_info_components = app_info.split(' ')
             if msg in {'START', 'DONE', 'FAILED'} and (len(app_info_components) >= 5):
                 app_name, app_version, event_name, host_name, pid = app_info_components[:5]
+                event = auto_path(app_name, app_version, event_name)
                 extra_items = _parse_extras(extras)
                 req_id = extra_items.get('track.request_id')
                 req_ts = extra_items.get('track.request_ts')
-                await _process_timestamps(req_id, event_name, msg, req_ts, ts, context)
-                await _process_counters(req_id, event_name, msg, context)
-                await _process_duration(req_id, event_name, msg, extra_items, context)
+                await _process_timestamps(req_id, event, msg, req_ts, ts, context)
+                await _process_counters(req_id, event, msg, context)
+                await _process_duration(req_id, event, msg, extra_items, context)
                 await _process_timestamps(req_id, '*', msg, req_ts, ts, context)
                 await _process_counters(req_id, '*', msg, context)
                 await _process_duration(req_id, '*', msg, extra_items, context)
-                #await _process_timestamps('*', event_name, msg, req_ts, ts, context)
-                #await _process_counters('*', event_name, msg, context)
-                #await _process_duration('*', event_name, msg, extra_items, context)
+                #await _process_timestamps('*', event, msg, req_ts, ts, context)
+                #await _process_counters('*', event, msg, context)
+                #await _process_duration('*', event, msg, extra_items, context)
     except Exception as e:
         logger.error(context, e)
 

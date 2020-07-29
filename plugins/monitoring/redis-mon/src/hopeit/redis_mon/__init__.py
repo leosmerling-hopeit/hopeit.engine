@@ -34,7 +34,7 @@ class RequestStats:
     request_ts: Optional[datetime]
     last_event_ts: Optional[datetime]
     processed_ts: Optional[datetime]
-    event_name: str
+    event: str
     started: int
     done: int
     failed: int
