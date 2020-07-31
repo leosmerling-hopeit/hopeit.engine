@@ -97,7 +97,7 @@ class LogFileHandler(FileSystemEventHandler):
                 self.open_files[src_path] = open(src_path, 'r')
                 if checkpoint:
                     line = self.open_files[src_path].readline()
-                    if line and (line < checkpoint):
+                    if line and (line <= checkpoint):
                         logger.info(self.context, "Skipping to checkpoint...", extra=extra(src_path=src_path, checkpoint=checkpoint))
                         while line and (line[:24] < checkpoint[:24]):
                             line = self.open_files[src_path].readline()
@@ -180,7 +180,7 @@ async def __service__(context: EventContext) -> Spawn[LogBatch]:
                 await asyncio.sleep(config.batch_wait_interval_secs)
             else:
                 for i in range(0, len(batch), config.batch_size):
-                    yield LogBatch(data=batch[i: i + config.batch_size])
+                    yield LogBatch(data=batch[i: i + config.batch_size + 1])
                     await asyncio.sleep(config.batch_wait_interval_secs)
             event_handler.close_inactive_files()
     except KeyboardInterrupt:
