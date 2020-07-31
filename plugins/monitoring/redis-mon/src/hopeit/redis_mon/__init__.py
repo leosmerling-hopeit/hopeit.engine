@@ -27,6 +27,7 @@ class LogReaderConfig:
     metrics_expire_secs: int = 3600
     aggregate_requests: bool = False
     aggregate_events: bool = False
+    pct_samples: int = 0
 
 
 @dataobject
@@ -60,6 +61,9 @@ class RequestStats:
     success: float = 0.0
     error_rate: float = 0.0
     duration_avg: float = 0.0
+    duration_p90: float = 0.0
+    duration_p99: float = 0.0
+    duration_p999: float = 0.0
     elapsed_secs: int = 0
     processed_lag: int = 0
 
@@ -107,3 +111,7 @@ async def get_opt_ts(redis, key: str, format_str: str = 'ISO') -> Optional[datet
         return datetime.fromisoformat(v.decode())
     else:
         return datetime.strptime(v.decode(), format_str).replace(tzinfo=timezone.utc)
+
+
+async def get_float_list(redis, key: str, max_len: int):
+    return [float(x.decode()) for x in await redis.lrange(key, 0, max_len)]

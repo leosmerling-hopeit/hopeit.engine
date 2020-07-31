@@ -1,5 +1,6 @@
 import asyncio
 import time
+import math
 import logging
 from copy import copy
 from asyncio import Lock
@@ -200,15 +201,16 @@ def _parse_extras(extras: List[str]) -> Dict[str, str]:
     return items
 
 
-async def _save_request_event_metrics(req_id: str, event: str, msg: str, exp: int, req_ts: str,
-                                      ts: str, extra_items: Dict[str, str], context: EventContext):
+async def _save_request_event_metrics(op_id: str, req_id: str, event: str, msg: str, exp: int, req_ts: str,
+                                      ts: str, pct_samples: int, extra_items: Dict[str, str], 
+                                      context: EventContext):
     await _process_timestamps(req_id, event, msg, exp, req_ts, ts, context)
     await _process_counters(req_id, event, msg, exp, context)
-    await _process_duration(req_id, event, msg, exp, extra_items, context)
+    await _process_duration(op_id, req_id, event, msg, exp, pct_samples, extra_items, context)
 
 
 async def _process_log_entry(entry: str, exp: int, agg_events: bool, agg_requests: bool,
-                             context: EventContext):
+                             pct_samples: int, context: EventContext):
     try:
         xs = entry.split(' | ')
         if len(xs) >= 4:
@@ -218,18 +220,22 @@ async def _process_log_entry(entry: str, exp: int, agg_events: bool, agg_request
                 app_name, app_version, event_name = app_info_components[:3]
                 event = auto_path(app_name, app_version, event_name)
                 extra_items = _parse_extras(extras)
+                op_id = extra_items.get('track.operation_id')
                 req_id = extra_items.get('track.request_id')
                 req_ts = extra_items.get('track.request_ts')
                 tasks = [
-                    _save_request_event_metrics(req_id, event, msg, exp, req_ts, ts, extra_items, context)
+                    _save_request_event_metrics(op_id, req_id, event, msg, exp, req_ts, ts, 
+                                                pct_samples, extra_items, context)
                     ]
                 if agg_requests:
                     tasks.append(
-                        _save_request_event_metrics(req_id, '*', msg, exp, req_ts, ts, extra_items, context)
+                        _save_request_event_metrics(op_id, req_id, '*', msg, exp, req_ts, ts, 
+                                                    pct_samples, extra_items, context)
                     )
                 if agg_events:
                     tasks.append(
-                        _save_request_event_metrics('*', event, msg, exp, req_ts, ts, extra_items, context)
+                        _save_request_event_metrics(op_id, '*', event, msg, exp, req_ts, ts, 
+                                                    pct_samples, extra_items, context)
                     )
                 await asyncio.gather(*tasks)
     except Exception as e:
@@ -258,8 +264,8 @@ async def _process_counters(req_id: str, event_name: str, msg: str, exp: int, co
         logger.error(context, e)
 
 
-async def _process_duration(req_id: str, event_name: str, msg: str, exp: int, 
-                            extra_items: Dict[str, str], context: EventContext):
+async def _process_duration(op_id: str, req_id: str, event_name: str, msg: str, exp: int, 
+                            pct_samples: int, extra_items: Dict[str, str], context: EventContext):
     try:
         duration = extra_items.get('metrics.duration')
         if duration and req_id and (msg == 'DONE'):
@@ -267,14 +273,18 @@ async def _process_duration(req_id: str, event_name: str, msg: str, exp: int,
             await _update(redis.incr, f'{key}.count', exp=exp)
             await _update(redis.incrbyfloat, f'{key}.sum', float(duration), exp=exp)
             await _update(redis.set, f'{key}.last', float(duration), exp=exp)
+            if pct_samples:
+                await _update(redis.lpush, f'{key}.samples', float(duration), exp=exp, trim=pct_samples)
     except Exception as e:
         logger.error(context, e)
 
 
-async def _update(func, key: str, *args, exp: int):
+async def _update(func, key: str, *args, exp: int=0, trim=0):
     await func(key, *args)
     if exp:
         await redis.expire(key, exp)
+    if trim:
+        await redis.ltrim(key, 0, trim - 1)
 
 
 async def process_log_data(payload: LogBatch, context: EventContext):
@@ -287,6 +297,7 @@ async def process_log_data(payload: LogBatch, context: EventContext):
                                      exp=config.metrics_expire_secs, 
                                      agg_events=config.aggregate_events, 
                                      agg_requests=config.aggregate_requests, 
+                                     pct_samples=config.pct_samples,
                                      context=context)
     except Exception as e:
         logger.error(context, e)
