@@ -8,7 +8,15 @@
   },
   "env" : {
     "log_reader": {
-        "path": "work/logs/apps/"
+        "path": "work/logs/apps/",
+        "prefix": "simple_example",
+        "file_open_timeout_secs": 600,
+        "file_checkpoint_expire_secs": 86400,
+        "batch_size": 10000,
+        "batch_wait_interval_secs": 1,
+        "metrics_expire_secs": 3600,
+        "aggregate_requests": true,
+        "aggregate_events": true
     }
   },
   "events": {

@@ -17,6 +17,20 @@ async def connect_redis(redis, logger, context: EventContext):
 
 @dataobject
 @dataclass
+class LogReaderConfig:
+    path: str
+    prefix: str = ''
+    file_open_timeout_secs: int = 600
+    file_checkpoint_expire_secs: int = 86400
+    batch_size: int = 10000
+    batch_wait_interval_secs: int = 1
+    metrics_expire_secs: int = 3600
+    aggregate_requests: bool = False
+    aggregate_events: bool = False
+
+
+@dataobject
+@dataclass
 class LogBatch:
     data: List[str]
 
