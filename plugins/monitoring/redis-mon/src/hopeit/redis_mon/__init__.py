@@ -10,14 +10,16 @@ from hopeit.app.context import EventContext
 
 async def connect_redis(redis, logger, context: EventContext):
     if redis is None:
-        logger.info(context, "Connecting monitoring plugin to Redis...")
-        return await aioredis.create_redis_pool('redis://localhost:6379')
+        redis_url = context.env['log_reader'].get('redis_url', 'redis://localhost:6379')
+        logger.info(context, f"Connecting monitoring plugin to {redis_url}...")
+        return await aioredis.create_redis_pool(redis_url)
     return redis
 
 
 @dataobject
 @dataclass
 class LogReaderConfig:
+    redis_url: Optional[str]
     path: str
     prefix: str = ''
     file_open_timeout_secs: int = 600

@@ -8,6 +8,7 @@
   },
   "env" : {
     "log_reader": {
+        "redis_url": "${REDIS_URL}",
         "path": "work/logs/apps/",
         "prefix": "simple_example",
         "file_open_timeout_secs": 600,
