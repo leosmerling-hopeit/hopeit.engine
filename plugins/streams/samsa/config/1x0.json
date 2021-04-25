@@ -1,0 +1,21 @@
+{
+  "app" : {
+    "name": "samsa",
+    "version": "1.0"
+  },
+  "engine" : {
+    "import_modules": ["hopeit.samsa"]
+  },
+  "env" : {
+  },
+  "events": {
+    "push" : {
+      "type": "POST",
+      "plug_mode": "Standalone"
+    },
+    "consume" : {
+      "type": "GET",
+      "plug_mode": "Standalone"
+    }
+  }
+}
