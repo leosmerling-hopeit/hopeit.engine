@@ -10,7 +10,9 @@ from hopeit.samsa import Batch, queues
 __steps__ = ['push']
 
 
-async def push(payload: Batch, context: EventContext, stream_name: str) -> str:
+async def push(payload: Batch, context: EventContext, stream_name: str) -> int:
     global queues
-    queues[stream_name].extendleft(payload.items)
-    return "OK"
+    q = queues[stream_name]
+    q.data.extendleft(payload.items)
+    q.offset0 += 1
+    return q.offset0
