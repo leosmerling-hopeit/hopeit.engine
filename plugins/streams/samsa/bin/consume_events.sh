@@ -1,4 +1,4 @@
-#!/bin/bash
-nohup curl -i "localhost:9020/api/samsa/1x0/consume?stream_name=test_stream&consumer_group=$1&batch_size=10" &
-nohup curl -i "localhost:9021/api/samsa/1x0/consume?stream_name=test_stream&consumer_group=$1&batch_size=10" &
-nohup curl -i "localhost:9022/api/samsa/1x0/consume?stream_name=test_stream&consumer_group=$1&batch_size=10" &
+export SAMSA_CONSUME_NODES="http://localhost:9020,http://localhost:9021" \
+    && nohup python plugins/streams/samsa/src/hopeit/samsa/client.py consume $1 &
+export SAMSA_CONSUME_NODES="http://localhost:9022" \
+    && nohup python plugins/streams/samsa/src/hopeit/samsa/client.py consume $1 &

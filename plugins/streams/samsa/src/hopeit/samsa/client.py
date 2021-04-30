@@ -2,6 +2,7 @@ import asyncio
 from collections import defaultdict
 from typing import Dict
 import uuid
+from datetime import datetime
 
 import aiohttp
 
@@ -10,46 +11,72 @@ from hopeit.dataobjects.jsonify import Json
 from hopeit.samsa import Batch, Message, Stats
 
 
-async def push(batch: Batch, context: EventContext, stream_name: str):
-    nodes = context.env['samsa_nodes']
-    node_keys = list(nodes.keys())
+async def push(batch: Batch, context: EventContext, stream_name: str) -> Dict[str, Dict[str, int]]:
+    nodes = context.env['samsa']['push_nodes'].split(',')
 
     partitions = defaultdict(list)
     for item in batch.items:
         node_index = hash(item.key) % len(nodes)
-        partitions[node_keys[node_index]].append(item)
+        partitions[nodes[node_index]].append(item)
 
-    await asyncio.gather(*[
-        post_push(url=nodes[node_key], stream_name=stream_name, batch=Batch(items=items))
-        for node_key, items in partitions.items()
+    node_res = await asyncio.gather(*[
+        _post_push(url=url, stream_name=stream_name, batch=Batch(items=items))
+        for url, items in partitions.items()
     ])
 
+    return {
+        url: res for (url, _), res in zip(partitions.items(), node_res)
+    }
+
+
+async def consume(context: EventContext, stream_name: str, consumer_group: str, batch_size: int):
+    nodes = context.env['samsa']['consume_nodes'].split(',')
+    partitions = await asyncio.gather(*[
+        _get_consume(url=url, stream_name=stream_name, consumer_group=consumer_group, batch_size=batch_size)
+        for url in nodes
+    ])
+    return Batch(items=[
+        item for partition in partitions for item in partition.items
+    ])
+
+
 async def stats(context: EventContext) -> Dict[str, Stats]:
-    nodes = context.env['samsa_nodes']
-    node_items = list(nodes.items())
+    nodes = context.env['samsa']['push_nodes'].split(',')
     all_stats = {
-        node_key: node_stats
-        for node_key, node_stats in zip([
-            node_key for node_key, _ in node_items
-        ], await asyncio.gather(*[
-            get_stats(url)
-            for _, url in node_items
-        ]))
+        url: node_stats
+        for url, node_stats in zip(
+            nodes,
+            await asyncio.gather(*[
+                _get_stats(url)
+                for url in nodes
+            ])
+        )
     }
     return all_stats
 
 
-async def post_push(url: str, stream_name: str, batch: Batch):
+async def _post_push(url: str, stream_name: str, batch: Batch) -> Dict[str, int]:
     async with aiohttp.ClientSession() as client:
         async with client.post(f"{url}/api/samsa/1x0/push", data=Json.to_json(batch), params={"stream_name": stream_name}) as res:
-            print("push", url, res.status, await res.json())
+            return await res.json()
 
 
-async def get_stats(url: str):
+async def _get_consume(url: str, stream_name: str, consumer_group: str, batch_size) -> Batch:
+    async with aiohttp.ClientSession() as client:
+        async with client.get(f"{url}/api/samsa/1x0/consume", 
+                               params={
+                                   "stream_name": stream_name, 
+                                   "consumer_group": consumer_group, 
+                                   "batch_size": batch_size
+                                }) as res:
+            body = await res.json()
+            return Batch.from_dict(body)
+
+
+async def _get_stats(url: str):
     async with aiohttp.ClientSession() as client:
         async with client.get(f"{url}/api/samsa/1x0/stats") as res:
             body = await res.json()
-            print("stats", url, body)
             return body
 
 
@@ -63,9 +90,31 @@ async def test_push():
             for i in range(10)
         ]
     )
-    await push(batch, context, stream_name="test_stream")
+    res = await push(batch, context, stream_name="test_stream")
+    print("PUSH ------------------------------------------------------")
+    print(context.env['samsa']['push_nodes'], res)
+    print("-----------------------------------------------------------")
     print(await stats(context))
+    print("-----------------------------------------------------------")
+
+
+async def test_consume(consumer_group: str):
+    from hopeit.testing.apps import config, create_test_context
+    app_config = config("plugins/streams/samsa/config/1x0.json")
+    context = create_test_context(app_config, "consume")
+    data = await consume(context, stream_name="test_stream", consumer_group=consumer_group, batch_size=10)
+    print("CONSUME ---------------------------------------------------")
+    print(context.env['samsa']['consume_nodes'], data)
+    print("-----------------------------------------------------------")
+    print(await stats(context))
+    print("-----------------------------------------------------------")
 
 
 if __name__ == "__main__":
-    asyncio.run(test_push())
+    import sys
+    args = sys.argv
+    print("client.py", args)
+    if args[1] == "push":
+        asyncio.run(test_push())
+    elif args[1] == "consume":
+        asyncio.run(test_consume(args[2]))
