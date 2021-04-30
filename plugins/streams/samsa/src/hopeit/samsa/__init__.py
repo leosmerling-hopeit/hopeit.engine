@@ -2,7 +2,7 @@ import asyncio
 from typing import Any, Dict, List, Tuple
 from collections import defaultdict, deque
 
-from hopeit.dataobjects import EventPayload, dataclass, dataobject
+from hopeit.dataobjects import dataclass, dataobject, DataObject
 
 
 @dataobject

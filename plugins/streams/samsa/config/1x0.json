@@ -7,6 +7,11 @@
     "import_modules": ["hopeit.samsa"]
   },
   "env" : {
+    "samsa_nodes": {
+      "1": "http://localhost:9020", 
+      "2": "http://localhost:9021", 
+      "3": "http://localhost:9022"
+    }
   },
   "events": {
     "push" : {
