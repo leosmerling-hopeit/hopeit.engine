@@ -16,6 +16,10 @@
     "consume" : {
       "type": "GET",
       "plug_mode": "Standalone"
+    },
+    "stats" : {
+      "type": "GET",
+      "plug_mode": "Standalone"
     }
   }
 }
