@@ -1,12 +1,13 @@
 import asyncio
 from collections import defaultdict
+from typing import Dict
 import uuid
 
 import aiohttp
 
 from hopeit.app.context import EventContext
 from hopeit.dataobjects.jsonify import Json
-from hopeit.samsa import Batch, Message
+from hopeit.samsa import Batch, Message, Stats
 
 
 async def push(batch: Batch, context: EventContext, stream_name: str):
@@ -19,15 +20,37 @@ async def push(batch: Batch, context: EventContext, stream_name: str):
         partitions[node_keys[node_index]].append(item)
 
     await asyncio.gather(*[
-        invoke_push(url=nodes[node_key], stream_name=stream_name, batch=Batch(items=items))
+        post_push(url=nodes[node_key], stream_name=stream_name, batch=Batch(items=items))
         for node_key, items in partitions.items()
     ])
 
+async def stats(context: EventContext) -> Dict[str, Stats]:
+    nodes = context.env['samsa_nodes']
+    node_items = list(nodes.items())
+    all_stats = {
+        node_key: node_stats
+        for node_key, node_stats in zip([
+            node_key for node_key, _ in node_items
+        ], await asyncio.gather(*[
+            get_stats(url)
+            for _, url in node_items
+        ]))
+    }
+    return all_stats
 
-async def invoke_push(url: str, stream_name: str, batch: Batch):
+
+async def post_push(url: str, stream_name: str, batch: Batch):
     async with aiohttp.ClientSession() as client:
         async with client.post(f"{url}/api/samsa/1x0/push", data=Json.to_json(batch), params={"stream_name": stream_name}) as res:
             print("push", url, res.status, await res.json())
+
+
+async def get_stats(url: str):
+    async with aiohttp.ClientSession() as client:
+        async with client.get(f"{url}/api/samsa/1x0/stats") as res:
+            body = await res.json()
+            print("stats", url, body)
+            return body
 
 
 async def test_push():
@@ -41,6 +64,7 @@ async def test_push():
         ]
     )
     await push(batch, context, stream_name="test_stream")
+    print(await stats(context))
 
 
 if __name__ == "__main__":
