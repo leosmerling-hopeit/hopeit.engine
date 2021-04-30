@@ -13,6 +13,4 @@ __steps__ = ['push']
 async def push(payload: Batch, context: EventContext, stream_name: str) -> int:
     global queues
     q = queues[stream_name]
-    q.data.extendleft(payload.items)
-    q.offset0 += 1
-    return q.offset0
+    return q.push(payload.items)
