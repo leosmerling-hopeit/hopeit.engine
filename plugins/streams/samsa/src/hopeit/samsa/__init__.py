@@ -1,6 +1,7 @@
 import asyncio
 from typing import Any, Dict, List, Tuple
 from collections import defaultdict, deque
+from base64 import b64decode, b64encode
 
 from hopeit.dataobjects import dataclass, dataobject, DataObject
 
@@ -9,7 +10,15 @@ from hopeit.dataobjects import dataclass, dataobject, DataObject
 @dataclass
 class Message:
     key: str
-    payload: Any
+    _v: str
+
+    @classmethod
+    def encode(cls, key: str, payload: bytes):
+        return cls(key=key, _v=b64encode(payload).decode())
+
+    @property
+    def payload(self) -> bytes:
+        return b64decode(self._v.encode())
 
 
 @dataobject

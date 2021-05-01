@@ -1,5 +1,6 @@
 import asyncio
 from collections import defaultdict
+from dataclasses import dataclass
 from typing import Dict
 import uuid
 from datetime import datetime
@@ -7,8 +8,10 @@ from datetime import datetime
 import aiohttp
 
 from hopeit.app.context import EventContext
+from hopeit.dataobjects import dataobject
 from hopeit.dataobjects.jsonify import Json
 from hopeit.samsa import Batch, Message, Stats
+from hopeit.server.serialization import deserialize, serialize
 
 
 async def push(batch: Batch, context: EventContext, stream_name: str) -> Dict[str, Dict[str, int]]:
@@ -80,13 +83,25 @@ async def _get_stats(url: str):
             return body
 
 
+@dataobject
+@dataclass
+class MyMessage:
+    number: int
+    text: str
+
+
 async def test_push():
     from hopeit.testing.apps import config, create_test_context
+    from hopeit.server.serialization import serialize, Serialization, Compression
+
     app_config = config("plugins/streams/samsa/config/1x0.json")
     context = create_test_context(app_config, "push")
     batch = Batch(
         items=[
-            Message(key=str(uuid.uuid4()), payload=f"Message {i}")
+            Message.encode(
+                key=str(uuid.uuid4()), 
+                payload=serialize(MyMessage(number=i, text=f"message {i}"), Serialization.PICKLE5, Compression.LZ4)
+            )
             for i in range(10)
         ]
     )
@@ -100,11 +115,16 @@ async def test_push():
 
 async def test_consume(consumer_group: str):
     from hopeit.testing.apps import config, create_test_context
+    from hopeit.server.serialization import deserialize, Serialization, Compression
+
     app_config = config("plugins/streams/samsa/config/1x0.json")
     context = create_test_context(app_config, "consume")
     data = await consume(context, stream_name="test_stream", consumer_group=consumer_group, batch_size=10)
     print("CONSUME ---------------------------------------------------")
     print(context.env['samsa']['consume_nodes'], data)
+    for item in data.items:
+        msg = deserialize(item.payload, Serialization.PICKLE5, Compression.LZ4, MyMessage)
+        print(item.key, msg)
     print("-----------------------------------------------------------")
     print(await stats(context))
     print("-----------------------------------------------------------")
