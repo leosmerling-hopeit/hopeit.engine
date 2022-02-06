@@ -168,7 +168,7 @@ class RedisStreamManager(StreamManager):
                 for msg in batch:
                     read_ts = datetime.now().astimezone(tz=timezone.utc).isoformat()
                     msg_type = msg[1][b'type'].decode()
-                    datatype = datatypes.get(msg_type)
+                    datatype = datatypes.get(msg_type, datatypes.get("DataObject"))
                     if datatype is None:
                         err_msg = \
                             f"Cannot read msg_id={msg[0].decode()}: msg_type={msg_type} is not any of {datatypes}"

@@ -53,6 +53,9 @@
       "logging": {
         "extra_fields": ["something_id"]
       }
+    },
+    "storage.save_events_fs": {
+      "path": "/tmp/{auto}"
     }
   },
   "events": {

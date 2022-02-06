@@ -15,7 +15,7 @@ from hopeit.app.config import AppConfig, EventSettings, EventType, ReadStreamDes
     StreamQueue, StreamQueueStrategy
 from hopeit.app.context import EventContext, PostprocessHook, PreprocessHook
 from hopeit.app.client import register_app_connections, stop_app_connections
-from hopeit.dataobjects import EventPayload
+from hopeit.dataobjects import DataObject, EventPayload
 from hopeit.server.config import ServerConfig
 from hopeit.server.events import EventHandler, get_event_settings, get_runtime_settings
 from hopeit.streams import stream_auth_info, StreamEvent, StreamOSError, StreamManager
@@ -568,6 +568,8 @@ class AppEngine:
         for _, _, step in steps:
             _, datatype, _, _ = step
             if hasattr(datatype, '__stream_event__'):
+                datatypes[datatype.__name__] = datatype
+            elif datatype is DataObject:
                 datatypes[datatype.__name__] = datatype
         if len(datatypes) == 0:
             raise NotImplementedError(f"No data types found to read from stream in event={event_name}. "
