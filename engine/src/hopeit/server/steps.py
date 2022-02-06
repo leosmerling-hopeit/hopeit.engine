@@ -324,9 +324,9 @@ def split_event_stages(app: AppDescriptor,
     return effective_events
 
 
-def find_datatype_handler(*, app_config: AppConfig, event_name: str):
+def find_datatype_handler(*, app_config: AppConfig, event_name: str, event_info: EventDescriptor):
     base_event, from_step = event_and_step(event_name)
-    impl = find_event_handler(app_config=app_config, event_name=base_event)
+    impl = find_event_handler(app_config=app_config, event_name=base_event, event_info=event_info)
     datatype = extract_input_type(impl, from_step=from_step)
     return datatype
 

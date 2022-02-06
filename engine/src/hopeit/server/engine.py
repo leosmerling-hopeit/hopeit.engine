@@ -380,7 +380,7 @@ class AppEngine:
                     consumer_group=stream_info.consumer_group
                 )
 
-            datatypes = self._find_stream_datatype_handlers(event_name)
+            datatypes = self._find_stream_datatype_handlers(event_name, event_config)
             log_info['name'] = stream_info.name
             log_info['consumer_group'] = stream_info.consumer_group
             assert not self._running[event_name].locked(), f"Event already running {event_name}"
@@ -493,7 +493,8 @@ class AppEngine:
                         extra=extra(prefix='service.', **log_info))
             await asyncio.sleep(wait)
         logger.info(__name__, "Starting service...", extra=extra(prefix='service.', **log_info))
-        impl = find_event_handler(app_config=self.app_config, event_name=event_name)
+        event_config = self.effective_events[event_name]
+        impl = find_event_handler(app_config=self.app_config, event_name=event_name, event_info=event_config)
         service_handler = getattr(impl, '__service__')
         assert service_handler is not None, \
             f"{event_name} must implement method `__service__(context) -> Spawn[...]` to run as a service"
@@ -549,18 +550,18 @@ class AppEngine:
     def _config_effective_events(app_config: AppConfig) -> Dict[str, EventDescriptor]:
         effective_events: Dict[str, EventDescriptor] = {}
         for event_name, event_info in app_config.events.items():
-            impl = find_event_handler(app_config=app_config, event_name=event_name)
+            impl = find_event_handler(app_config=app_config, event_name=event_name, event_info=event_info)
             splits = split_event_stages(app_config.app, event_name, event_info, impl)
             effective_events.update(**splits)
         return effective_events
 
-    def _find_stream_datatype_handlers(self, event_name: str) -> Dict[str, type]:
+    def _find_stream_datatype_handlers(self, event_name: str, event_info: EventDescriptor) -> Dict[str, type]:
         """
         Computes a dictionary of `{datatype name: datatype class}` that event steps
         can be handle when consuming from an stream.
         """
         base_event, _ = event_and_step(event_name)
-        impl = find_event_handler(app_config=self.app_config, event_name=base_event)
+        impl = find_event_handler(app_config=self.app_config, event_name=base_event, event_info=event_info)
         all_steps = extract_module_steps(impl)
         steps = effective_steps(event_name, all_steps)
         datatypes = {}

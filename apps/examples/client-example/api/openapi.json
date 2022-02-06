@@ -482,6 +482,9 @@
           "route": {
             "type": "string"
           },
+          "impl": {
+            "type": "string"
+          },
           "connections": {
             "type": "array",
             "items": {
