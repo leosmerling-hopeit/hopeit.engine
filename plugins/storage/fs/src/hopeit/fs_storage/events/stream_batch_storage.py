@@ -35,25 +35,28 @@ class FlushSignal:
 
 
 async def __service__(context: EventContext) -> Spawn[FlushSignal]:
+    global buffer
     while True:
         await asyncio.sleep(60.0)
-        for partition_key in buffer.keys():
+        for partition_key in list(buffer.keys()):
             yield FlushSignal(partition_key=partition_key)
 
 
 async def buffer_item(payload: DataObject, context: EventContext) -> Optional[FlushSignal]:
+    global buffer
     ts = payload.event_ts() or datetime.now()
     partition_key = ts.strftime("%Y/%m/%d/")
     partition = buffer.get(partition_key, Partition())
     async with partition.lock:
         partition.items.append(payload)
     buffer[partition_key] = partition
-    if len(partition.items) >= 10:
-        return FlushSignal(partition_key=partition_key)
+    # if len(partition.items) >= 10:
+    #     return FlushSignal(partition_key=partition_key)
     return None
 
 
 async def flush(signal: FlushSignal, context: EventContext):
+    global buffer
     logger.info(context, f"Flushing partition {signal.partition_key}...")
     partition = buffer[signal.partition_key]
     async with partition.lock:
