@@ -11,7 +11,7 @@ import inspect
 from hopeit.app.config import AppConfig, AppDescriptor, EventDescriptor, EventType, \
     ReadStreamDescriptor, StreamQueueStrategy, WriteStreamDescriptor
 from hopeit.app.context import EventContext
-from hopeit.dataobjects import EventPayload, copy_payload, EventPayloadType
+from hopeit.dataobjects import DataObject, EventPayload, copy_payload, EventPayloadType
 from hopeit.server.imports import find_event_handler
 from hopeit.server.logger import engine_logger, extra_logger
 from hopeit.server.names import auto_path
@@ -253,6 +253,8 @@ def _find_next_step(payload: Optional[EventPayload],
     for i, _, step_info in steps[from_index:]:
         func, input_type, _, is_iterable = step_info
         if input_type is None and payload is None:
+            return i, func, is_iterable
+        if input_type is DataObject and payload is not None:
             return i, func, is_iterable
         if input_type is not None and isinstance(payload, input_type):
             return i, func, is_iterable

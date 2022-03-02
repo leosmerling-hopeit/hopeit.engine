@@ -308,6 +308,7 @@ class EventDescriptor:
     write_stream: Optional[WriteStreamDescriptor] = None
     auth: List[AuthType] = field(default_factory=list)
     setting_keys: List[str] = field(default_factory=list)
+    dataobjects: List[str] = field(default_factory=list)
 
     def __post_init__(self):
         if self.read_stream:

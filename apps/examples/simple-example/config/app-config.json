@@ -133,7 +133,10 @@
         "consumer_group": "{auto}",
         "queues": ["high-prio", "AUTO"]
       },
-      "impl": "hopeit.fs_storage.events.streams_storage"
+      "impl": "hopeit.fs_storage.events.streams_storage",
+      "dataobjects": [
+        "model.Something"
+      ]
     }
   }
 }

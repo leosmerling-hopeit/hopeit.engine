@@ -3,10 +3,12 @@ Utilities to import apps modules and datatypes at runtime / server start
 """
 from importlib import import_module
 from types import ModuleType
-from typing import Optional
+from typing import Type
 
 from hopeit.app.config import AppConfig, EventDescriptor
 from hopeit.server.names import module_name
+
+from hopeit.dataobjects import DataObject
 
 __all__ = ['find_event_handler']
 
@@ -34,3 +36,15 @@ def find_event_handler(*, app_config: AppConfig,
         except ImportError as e:
             errors.append(e)
     raise ImportError(f"Cannot import {event_name} from {imps}", *errors)
+
+
+def find_datobject_type(qual_type_name: str) -> Type[DataObject]:
+    module_name,  type_name = (
+        '.'.join(qual_type_name.split('.')[:-1]),
+        qual_type_name.split('.')[-1]
+    )
+    module = import_module(module_name)
+    datatype = getattr(module, type_name)
+    assert hasattr(datatype, "__data_object__"), \
+        f"Type {qual_type_name} must be annotated with `@dataobject`."
+    return datatype

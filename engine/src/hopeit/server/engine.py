@@ -8,8 +8,8 @@ from asyncio import CancelledError
 from datetime import datetime, timezone
 from typing import Awaitable, Optional, Dict, List, Union, Tuple, Any
 
-from hopeit.server.imports import find_event_handler
-from hopeit.server.steps import split_event_stages, event_and_step, extract_module_steps, effective_steps
+from hopeit.server.imports import find_datobject_type, find_event_handler
+from hopeit.server.steps import find_datatype_handler, split_event_stages, event_and_step, extract_module_steps, effective_steps
 from hopeit.toolkit import auth
 from hopeit.app.config import AppConfig, EventSettings, EventType, ReadStreamDescriptor, EventDescriptor, \
     StreamQueue, StreamQueueStrategy
@@ -568,9 +568,11 @@ class AppEngine:
         for _, _, step in steps:
             _, datatype, _, _ = step
             if hasattr(datatype, '__stream_event__'):
-                datatypes[datatype.__name__] = datatype
+                datatypes[f"{datatype.__module__}.{datatype.__qualname__}"] = datatype
             elif datatype is DataObject:
-                datatypes[datatype.__name__] = datatype
+                for type_name in event_info.dataobjects:
+                    datatype = find_datobject_type(type_name)
+                    datatypes[f"{datatype.__module__}.{datatype.__qualname__}"] = datatype
         if len(datatypes) == 0:
             raise NotImplementedError(f"No data types found to read from stream in event={event_name}. "
                                       "Dataclasses must be decorated with `@dataobject` to be used in streams")

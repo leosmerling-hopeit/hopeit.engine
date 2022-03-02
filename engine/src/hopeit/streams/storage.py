@@ -26,3 +26,4 @@ class Result(Enum):
 @dataclass
 class StreamStorageOp:
     result: Result
+    info: str

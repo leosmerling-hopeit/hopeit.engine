@@ -1893,6 +1893,13 @@
               "type": "string"
             },
             "default": []
+          },
+          "dataobjects": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": []
           }
         },
         "x-module-name": "hopeit.app.config",
