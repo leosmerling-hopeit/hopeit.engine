@@ -1,3 +1,79 @@
+"""
+Stream Batch Storage
+
+This event implementation allows saving data from a stream to the file system.
+This event acts as a STREAM event and at the same time as a SERVICE,
+manged internally by hopeit.engine once configured (see example below).
+
+The STREAM event, consumed elements from a stream and keeps them in a memory buffer.
+The SERVICE part provides a loop to flush the buffer in a fixed time interval.
+
+Example app config:
+```
+{
+  ...
+  "settings": {
+    "storage.save_events_fs": {
+      "path": "/tmp/{auto}",
+      "partition_dateformat": "%Y/%m/%d/%H/",
+      "flush_seconds": 60.0,
+      "flush_max_size": 100
+    }
+  },
+  "events": {
+    "storage.save_events_fs": {
+      "type": "STREAM",
+      "read_stream": {
+        "name": "data_stream",
+        "consumer_group": "{auto}",
+      },
+      "impl": "hopeit.fs_storage.events.stream_batch_storage",
+      "dataobjects": [
+        "model.Something"
+      ]
+    }
+  }
+```
+
+This implementation will buffer a number of events for a given time, divided into partitions.
+Partitions are determined by the `event_ts()` returning function of a dataobject, i.e.:
+```
+@dataobject(event_ts='date_field')
+@dataclass
+class Something:
+    ...
+    date_field: datetime
+    ...
+```
+
+If event_ts is not set or date field is None, current timestamp at the moment the event
+is consumed will be used.
+
+The maximum elements per partition to be kept in memory are set by the `flush_max_size` setting.
+The approximate regular interval to flish all partitions in buffer is set by `flush_seconds` setting.
+After buffering a flushing consumed items from stream, this event implementation will create a folder
+per each partition, using the `partition_dateformat` format to create subfolders x time intervals:
+
+i.e. for a daily format `%Y/%m/%d` (default):
+```
+/save_path/
+ |--2022
+     |-- 03
+          |--01
+          |  |-- 55d6f2d4-865d-47a5-8cd3-bf04f7ac07f5.jsonlines
+          |  |-- 6d926417-6b16-49ad-86bd-897cbbeaa614.jsonlines
+          |  ...
+          |--02
+             ...
+```             
+
+This way data can be filtered out on retrieval without the need to iterate
+all folders.
+
+Each generated files is a in `jsonlines` foramt (http://jsonlines.org) meaning
+each line is a valid single-line json object resulting of serializing the
+dataobjects consumed from the input stream.
+"""
 import asyncio
 import os
 import uuid

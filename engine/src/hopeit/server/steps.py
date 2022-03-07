@@ -126,7 +126,10 @@ def extract_input_type(impl: ModuleType, from_step: Optional[str] = None) -> Typ
 def event_and_step(event_name: str) -> Tuple[str, Optional[str]]:
     comps = event_name.split('$')
     if len(comps) > 1:
-        return comps[0], comps[1] if comps[1][0] != "_" else None
+        return (
+            comps[0],
+            comps[1] if comps[1][0] != "_" else None  # Ignore special suffixes after '$' (i.e. `$__service__`)
+        )
     return event_name, None
 
 
