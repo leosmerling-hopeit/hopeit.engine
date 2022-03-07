@@ -126,7 +126,7 @@ def extract_input_type(impl: ModuleType, from_step: Optional[str] = None) -> Typ
 def event_and_step(event_name: str) -> Tuple[str, Optional[str]]:
     comps = event_name.split('$')
     if len(comps) > 1:
-        return comps[0], comps[1]
+        return comps[0], comps[1] if comps[1][0] != "_" else None
     return event_name, None
 
 
@@ -243,8 +243,8 @@ async def invoke_single_step(func: Callable, *,
 
 
 def _find_next_step(payload: Optional[EventPayload],
-                    steps: StepExecutionList,
-                    from_index: int) -> Tuple[int, Optional[Callable], bool]:
+                   steps: StepExecutionList,
+                   from_index: int) -> Tuple[int, Optional[Callable], bool]:
     """
     Finds next step to exectute in pending_steps list, base on the payload data type
     """
@@ -320,6 +320,7 @@ def split_event_stages(app: AppDescriptor,
             type=event_type,
             read_stream=read_stream,
             connections=event_info.connections,
+            impl=event_info.impl,
             write_stream=WriteStreamDescriptor(
                 name=intermediate_stream,
                 queue_strategy=StreamQueueStrategy.PROPAGATE

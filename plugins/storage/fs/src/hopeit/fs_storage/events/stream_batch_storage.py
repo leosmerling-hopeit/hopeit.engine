@@ -50,8 +50,8 @@ async def buffer_item(payload: DataObject, context: EventContext) -> Optional[Fl
     async with partition.lock:
         partition.items.append(payload)
     buffer[partition_key] = partition
-    # if len(partition.items) >= 10:
-    #     return FlushSignal(partition_key=partition_key)
+    if len(partition.items) >= 10:
+        return FlushSignal(partition_key=partition_key)
     return None
 
 

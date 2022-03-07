@@ -140,10 +140,6 @@
       "dataobjects": [
         "model.Something"
       ]
-    },
-    "storage.flush_events_fs": {
-      "type": "SERVICE",
-      "impl": "hopeit.fs_storage.events.stream_batch_storage"
     }
   }
 }

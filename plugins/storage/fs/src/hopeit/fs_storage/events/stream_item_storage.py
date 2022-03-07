@@ -5,7 +5,7 @@ from hopeit.streams.storage import StreamStorageOp, Result
 
 from hopeit.fs_storage import FileStorage, FileStorageSettings
 
-from hopeit.dataobjects import DataObject, EventPayload
+from hopeit.dataobjects import DataObject, EventPayload, dataobject
 
 logger, extra = app_extra_logger()
 
