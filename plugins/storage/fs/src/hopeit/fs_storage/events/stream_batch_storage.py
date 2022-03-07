@@ -47,7 +47,9 @@ class Something:
 ```
 
 If event_ts is not set or date field is None, current timestamp at the moment the event
-is consumed will be used.
+is consumed in UTC will be used. In case event_ts is defined, it will be converted to UTC
+before used for patitioning. In case datetime filed is navice (no timezone) it will 
+be assumed to be in local timezone before converstion to UTC (Python `astimezone()` implementation)
 
 The maximum elements per partition to be kept in memory are set by the `flush_max_size` setting.
 The approximate regular interval to flish all partitions in buffer is set by `flush_seconds` setting.
@@ -134,7 +136,7 @@ async def __service__(context: EventContext) -> Spawn[FlushSignal]:
 async def buffer_item(payload: DataObject, context: EventContext) -> Optional[FlushSignal]:
     global buffer, buffer_lock
     settings: FileStorageSettings = context.settings(datatype=FileStorageSettings)
-    ts = payload.event_ts() or datetime.now(tz=timezone.utc)
+    ts = _partition_timestamp(payload)
     partition_key = ts.strftime(
         (settings.partition_dateformat.strip('/') + '/') or "%Y/%m/%d/"
     )
@@ -169,3 +171,8 @@ async def _save_partition(partition_key: str, items: List[DataObject], context: 
     async with aiofiles.open(file, 'w') as f:
         for item in items:
             await f.write(Payload.to_json(item) + "\n")
+
+
+def _partition_timestamp(payload: DataObject) -> datetime:
+    ts = payload.event_ts() or datetime.now(tz=timezone.utc)
+    return ts.astimezone(timezone.utc)
