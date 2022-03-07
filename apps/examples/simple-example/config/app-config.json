@@ -55,10 +55,10 @@
       }
     },
     "storage.save_events_fs": {
-      "path": "/tmp/{auto}"
-    },
-    "storage.flush_events_fs": {
-      "path": "{settings.storage.save_events_fs.path}"
+      "path": "/tmp/{auto}",
+      "partition_dateformat": "%Y/%m/%d/%H/",
+      "flush_seconds": 60.0,
+      "flush_max_size": 100
     }
   },
   "events": {
