@@ -22,11 +22,11 @@ class QuickstartUser(HttpUser):
         self.client.headers.update({'Authorization': 'Bearer ' + self.token})
 
     def login(self):
-          response = self.client.get("/api/simple-example/0x20/basic-auth/0x20/login")
+          response = self.client.get("/api/simple-example/0x16/basic-auth/0x16/login")
           ret = json.loads(response._content)
           print(ret)
           return ret['access_token']
 
     @task
     def hello_query_something(self):
-        self.client.get("/api/simple-example/0x20/query-something?item_id=loadtest&partition_key=2023%2F02%2F23%2F17")
+        self.client.get("/api/simple-example/0x16/query-something?item_id=loadtest&partition_key=2023%2F02%2F23%2F17")
