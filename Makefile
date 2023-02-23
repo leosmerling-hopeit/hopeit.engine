@@ -155,10 +155,10 @@ run-log-streamer:
 
 start-redis:
 	cd docker && \
-	docker-compose up -d redis && \
+	docker compose up -d redis && \
 	cd ..
 
 stop-redis:
 	cd docker && \
-	docker-compose stop redis && \
+	docker compose stop redis && \
 	cd ..
