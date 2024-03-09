@@ -1,26 +1,31 @@
+from importlib import import_module
 import io
 import os
-from datetime import datetime, timezone
-from importlib import import_module
-from pathlib import Path
 from typing import Callable, Generic, Optional, Type, TypeVar, Union
 from uuid import uuid4
-
-import aiofiles
-import pandas as pd
 from hopeit.dataframes.dataframe import DataFrameMixin
+
+import pandas as pd
 from hopeit.dataframes.serialization.dataset import Dataset
-from hopeit.dataobjects import DataObject, EventPayloadType
-from hopeit.dataobjects.payload import Payload
+from hopeit.dataobjects import EventPayloadType
+
+from hopeit.fs_storage import FileStorage, FileStorageSettings
 
 DataFrameType = TypeVar("DataFrameType", bound=DataFrameMixin)
 
 
 class DatasetFsStorage(Generic[DataFrameType]):
-
+    store: Optional[FileStorage] = None
+    location: Optional[str] = None
     def __init__(self, *, location: str, partition_dateformat: Optional[str], **kwargs):
-        self.base_path = Path(location)
-        self.partition_dateformat = partition_dateformat or "%Y/%m/%d/%H/"
+        self.location = location
+
+        settings = FileStorageSettings(
+            path=location,
+            partition_dateformat=partition_dateformat or "%Y/%m/%d/%H/",
+        )
+        if self.store is None:
+            self.store = FileStorage.with_settings(settings)
 
     async def save(self, dataframe: DataFrameType) -> Dataset:
         datatype = type(dataframe)
@@ -79,6 +84,9 @@ class DatasetFsStorage(Generic[DataFrameType]):
             return await self.load(dataset)
         return await base_deserialization(data, datatype)
 
+    def _get_patition_key(self, location: str) -> str:
+        return location.replace(self.store.path.as_posix(), "")[1:]
+
 
 def find_dataframe_type(qual_type_name: str) -> Type[DataFrameType]:
     mod_name, type_name = (
@@ -91,7 +99,3 @@ def find_dataframe_type(qual_type_name: str) -> Type[DataFrameType]:
         datatype, "__dataframe__"
     ), f"Type {qual_type_name} must be annotated with `@dataframe`."
     return datatype
-
-
-def _get_partition_key(partition_dateformat: str) -> str:
-    return datetime.now(tz=timezone.utc).strftime(partition_dateformat.strip("/")) + "/"
