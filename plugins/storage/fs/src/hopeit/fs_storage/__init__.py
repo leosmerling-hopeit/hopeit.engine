@@ -53,6 +53,13 @@ class ItemLocator:
     partition_key: Optional[str] = None
 
 
+@dataobject
+@dataclass
+class FileLocator:
+    file_name: str
+    partition_key: Optional[str] = None
+
+
 class FileStorage(Generic[DataObject]):
     """
     Stores and retrieves dataobjects from filesystem
@@ -165,6 +172,20 @@ class FileStorage(Generic[DataObject]):
         path = self.path / partition_key if partition_key else self.path
         for key in keys:
             await aiofiles.os.remove(path / (key + SUFFIX))
+
+    def get_file_locator(self, path: str) -> FileLocator:
+        """
+        Get the file locator for a given item path.
+
+        :param item_path: str, The path of the item
+        Returns: FileLocator: A FileLocator object containing the `file_name` and `partition_key`
+        """
+        partition_key = ""
+        dir_name = os.path.dirname(path)
+        file_name = os.path.basename(path)
+        if self.partition_dateformat:
+            partition_key = dir_name.replace(self.path.as_posix(), "", 1).lstrip("/")
+        return FileLocator(file_name, partition_key)
 
     @staticmethod
     async def _load_file(*, path: Path, file_name: str) -> Optional[str]:

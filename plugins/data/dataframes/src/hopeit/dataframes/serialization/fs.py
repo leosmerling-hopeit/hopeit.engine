@@ -9,7 +9,7 @@ import pandas as pd
 from hopeit.dataframes.serialization.dataset import Dataset
 from hopeit.dataobjects import EventPayloadType
 
-from hopeit.fs_storage import FileStorage, FileStorageSettings
+from hopeit.fs_storage import FileLocator, FileStorage, FileStorageSettings
 
 DataFrameType = TypeVar("DataFrameType", bound=DataFrameMixin)
 
@@ -49,10 +49,10 @@ class DatasetFsStorage(Generic[DataFrameType]):
             datatype=f"{datatype.__module__}.{datatype.__qualname__}",
         )
 
-    async def load(self, dataset: Dataset) -> EventPayloadType:
-        datatype: Type[DataFrameType] = find_dataframe_type(dataset.datatype)
-        location = self.base_path / dataset.partition_key / dataset.key
-        async with aiofiles.open(location, "rb") as f:
+    async def load(self, dataset: Dataset) -> DataFrameType:
+        datatype = find_dataframe_type(dataset.datatype)
+        file_locator: FileLocator = self.store.get_file_locator(dataset.location)
+        async with self.store.get_file(**file_locator) as f:
             df = pd.read_parquet(io.BytesIO(await f.read()), engine="pyarrow")
             return datatype._from_df(df)
 
