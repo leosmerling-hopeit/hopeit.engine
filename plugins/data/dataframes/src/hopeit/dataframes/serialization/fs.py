@@ -35,7 +35,6 @@ class DatasetFsStorage(Generic[DataFrameType]):
             location=location.as_posix(),
             datatype=f"{datatype.__module__}.{datatype.__qualname__}",
         )
-        setattr(dataframe, "__dataset", dataset)
         return dataset
 
     @staticmethod

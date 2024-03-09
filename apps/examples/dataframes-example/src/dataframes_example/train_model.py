@@ -45,11 +45,6 @@ __api__ = event_api(
 )
 
 
-async def __init_event__(context):
-    await experiment_storage.init_experiment_storage(context)
-    await model_storage.init_model_storage(context)
-
-
 def prepare_experiment(input_data: InputData, context: EventContext) -> Experiment:
     experiment_id = str(uuid.uuid4())
 
