@@ -244,6 +244,6 @@ def dataframe(
     return wrap(decorated_class)  # type: ignore
 
 
-class DataFrame(DataFrameMixin, Generic[DataFrameType]):
-    def __new__(cls, obj: DataFrameType):
-        return obj
+# class DataFrame(DataFrameMixin, Generic[DataFrameType]):
+#     def __new__(cls, obj: DataFrameType):
+#         return obj

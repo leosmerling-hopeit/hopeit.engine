@@ -29,7 +29,7 @@ from hopeit.dataobjects import (
     dataobject,
 )
 
-DataFrameType = TypeVar("DataFrameType")
+DataFrameObjectType = TypeVar("DataFrameObjectType")
 
 
 @dataclass
@@ -37,7 +37,7 @@ class DataframeObjectMetadata(Generic[DataObject]):
     serialized_type: Type[DataObject]
 
 
-class DataframeObjectMixin(Generic[DataFrameType]):
+class DataframeObjectMixin(Generic[DataFrameObjectType]):
     """
     MixIn class to add functionality for `@dataframeobject`s
 
@@ -66,7 +66,7 @@ class DataframeObjectMixin(Generic[DataFrameType]):
         return self.__dataframeobject__.serialized_type(**datasets)
 
     @classmethod
-    async def deserialize(cls, serialized: DataObject):
+    async def deserialize(cls, serialized: DataObject) -> "DataframeObjectMixin[DataFrameObjectType]":
         dataframes = {}
         for field in fields(cls):  # type: ignore
             if _is_dataframe_field(field):
