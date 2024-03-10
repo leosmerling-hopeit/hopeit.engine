@@ -12,28 +12,28 @@ class DataFrames(Generic[DataFrameType, DataFrameObjectType, DataObject]):
 
     @staticmethod
     async def serialize(obj: DataFrameObjectType) -> DataObject:
-        return await obj.serialize()  # type: ignore
+        return await obj._serialize()  # type: ignore
     
     @staticmethod
     def from_df(datatype: Type[DataFrameType], df: pd.DataFrame, **series: Dict[str, pd.Series]) -> DataFrameType:
-        return datatype.from_df(df, **series)  # type: ignore
+        return datatype._from_df(df, **series)  # type: ignore
     
     @staticmethod
     def from_dataframe(datatype: Type[DataFrameType], obj: DataFrameType, **series: Dict[str, pd.Series]) -> DataFrameType:
-        return datatype.from_df(obj.df, **series)  # type: ignore
+        return datatype._from_df(obj._df, **series)  # type: ignore
     
     @staticmethod
     def from_dataobjects(datatype: Type[DataFrameType], dataobjects: Iterator[DataFrameObjectType]) -> DataFrameType:
-        return datatype.from_dataobjects(dataobjects)  # type: ignore
+        return datatype._from_dataobjects(dataobjects)  # type: ignore
     
     @staticmethod
     def to_dataobjects(obj: DataFrameObjectType) -> List[DataFrameObjectType]:
-        return obj.to_dataobjects()  # type: ignore
+        return obj._to_dataobjects()  # type: ignore
     
     @staticmethod
     def from_array(datatype: Type[DataFrameType], array: np.ndarray) -> DataFrameType:
-        return datatype.from_array(array)  # type: ignore
+        return datatype._from_array(array)  # type: ignore
 
     @staticmethod
     def df(obj: DataFrameType) -> pd.DataFrame:
-        return obj.df  # type: ignore
+        return obj._df  # type: ignore

@@ -52,7 +52,7 @@ class DataframeObjectMixin(Generic[DataFrameObjectType]):
             "DataframeObjectMixin() should not be called directly. Use `@dataframeobject` annotation"
         )
 
-    async def serialize(self) -> Optional[DataObject]:
+    async def _serialize(self) -> Optional[DataObject]:
         datasets = {}
         for field in fields(self):  # type: ignore
             if _is_dataframe_field(field):
@@ -66,7 +66,7 @@ class DataframeObjectMixin(Generic[DataFrameObjectType]):
         return self.__dataframeobject__.serialized_type(**datasets)
 
     @classmethod
-    async def deserialize(cls, serialized: DataObject) -> "DataframeObjectMixin[DataFrameObjectType]":
+    async def _deserialize(cls, serialized: DataObject) -> "DataframeObjectMixin[DataFrameObjectType]":
         dataframes = {}
         for field in fields(cls):  # type: ignore
             if _is_dataframe_field(field):
@@ -88,7 +88,7 @@ class DataframeObjectMixin(Generic[DataFrameObjectType]):
     def to_json(self, *args, **kwargs) -> Dict[str, Any]:
         raise RuntimeError(
             f"`{type(self).__name__}` `@dataframeobject` cannot be converted to json directly. "
-            "i.e. use `return await payload.serialize()` to return it as a reponse."
+            "i.e. use `return await DataFrames.serialize(obj)` to return it as a reponse."
         )
 
 

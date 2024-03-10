@@ -28,7 +28,7 @@ class DatasetFsStorage(Generic[DataFrameType]):
         os.makedirs(path.resolve().as_posix(), exist_ok=True)
         location = path / f"{datatype.__qualname__.lower()}_{uuid4()}.parquet"
         async with aiofiles.open(location, "wb") as f:
-            await f.write(dataframe.df.to_parquet(engine="pyarrow"))
+            await f.write(dataframe._df.to_parquet(engine="pyarrow"))
 
         dataset = Dataset(
             protocol=f"{__name__}.DatasetFsStorage",
@@ -42,7 +42,7 @@ class DatasetFsStorage(Generic[DataFrameType]):
         datatype: Type[DataFrameType] = find_dataframe_type(dataset.datatype)
         async with aiofiles.open(dataset.location, "rb") as f:
             df = pd.read_parquet(io.BytesIO(await f.read()), engine="pyarrow")
-            return datatype.from_df(df)
+            return datatype._from_df(df)
 
     async def ser_wrapper(
         self,
@@ -51,7 +51,7 @@ class DatasetFsStorage(Generic[DataFrameType]):
         level: int,
     ) -> bytes:
         if hasattr(data, "__dataframeobject__"):
-            data = await data.serialize()  # type: ignore
+            data = await data._serialize()  # type: ignore
         if hasattr(data, "__dataframe__"):
             data = await self.save(data)  # type: ignore
         return await base_serialization(data, level)
@@ -66,7 +66,7 @@ class DatasetFsStorage(Generic[DataFrameType]):
             dataset = await base_deserialization(
                 data, datatype.__dataframeobject__.serialized_type  # type: ignore
             )
-            return await datatype.deserialize(dataset)  # type: ignore
+            return await datatype._deserialize(dataset)  # type: ignore
         if hasattr(datatype, "__dataframe__"):
             dataset = await base_deserialization(data, Dataset)
             return await self.load(dataset)
