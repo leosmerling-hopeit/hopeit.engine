@@ -18,8 +18,6 @@ class DatasetFsStorage(Generic[DataFrameType]):
     store: Optional[FileStorage] = None
     location: Optional[str] = None
     def __init__(self, *, location: str, partition_dateformat: Optional[str], **kwargs):
-        self.location = location
-
         settings = FileStorageSettings(
             path=location,
             partition_dateformat=partition_dateformat or "%Y/%m/%d/%H/",
@@ -52,7 +50,9 @@ class DatasetFsStorage(Generic[DataFrameType]):
     async def load(self, dataset: Dataset) -> DataFrameType:
         datatype = find_dataframe_type(dataset.datatype)
         file_locator: FileLocator = self.store.get_file_locator(dataset.location)
-        async with self.store.get_file(**file_locator) as f:
+        async with self.store.get_file(
+            file_name=file_locator.file_name, partition_key=file_locator.partition_key
+        ) as f:
             df = pd.read_parquet(io.BytesIO(await f.read()), engine="pyarrow")
             return datatype._from_df(df)
 
@@ -83,9 +83,6 @@ class DatasetFsStorage(Generic[DataFrameType]):
             dataset = await base_deserialization(data, Dataset)
             return await self.load(dataset)
         return await base_deserialization(data, datatype)
-
-    def _get_patition_key(self, location: str) -> str:
-        return location.replace(self.store.path.as_posix(), "")[1:]
 
 
 def find_dataframe_type(qual_type_name: str) -> Type[DataFrameType]:
