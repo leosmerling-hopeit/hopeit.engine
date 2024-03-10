@@ -1,6 +1,5 @@
+from dataframes_example import experiment_storage, model_storage
 from hopeit.app.context import EventContext
-from dataframes_example import model_storage, experiment_storage
-
 
 __steps__ = [
     "init_experiment_storage",

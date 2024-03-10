@@ -16,21 +16,26 @@ Example:
 from dataclasses import asdict, dataclass, fields, make_dataclass
 from datetime import date, datetime, timezone
 from typing import Any, Callable, Dict, Generic, Iterator, List, Optional, Type, TypeVar
-from dataclasses_jsonschema import DEFAULT_SCHEMA_TYPE, JsonSchemaMixin
 
 import numpy as np
 import pandas as pd
+from dataclasses_jsonschema import DEFAULT_SCHEMA_TYPE, JsonSchemaMixin
 from hopeit.dataframes.serialization.dataset import Dataset
-from hopeit.dataobjects import DataObject, StreamEventMixin, StreamEventParams, dataobject
+from hopeit.dataobjects import (
+    DataObject,
+    StreamEventMixin,
+    StreamEventParams,
+    dataobject,
+)
 
 DataFrameType = TypeVar("DataFrameType")
 
 
 @dataclass
-class DataFrameMetadata:
+class DataFrameMetadata(Generic[DataObject]):
     columns: List[str]
     serialized_type: Type[DataObject]
-    
+
 
 @dataclass
 class DataFrameParams:
@@ -50,7 +55,7 @@ class DataFrameParams:
         return value
 
 
-class DataFrameMixin(Generic[DataFrameType]):
+class DataFrameMixin(Generic[DataFrameType, DataObject]):
     """
     MixIn class to add functionality for DataFrames dataobjects
 
@@ -68,7 +73,7 @@ class DataFrameMixin(Generic[DataFrameType]):
     def __init__(self) -> None:
         # Fields added here only to allow mypy to provide correct type hints
         self.__data_object__: Dict[str, Any] = {}
-        self.__dataframe__: Dict[str, Any] = {}
+        self.__dataframe__: DataFrameMetadata = None  # type: ignore
         self.__df = pd.DataFrame()
         raise NotImplementedError  # must use @dataframe decorator  # pragma: no cover
 
@@ -84,26 +89,18 @@ class DataFrameMixin(Generic[DataFrameType]):
     @classmethod
     def from_df(cls, df: pd.DataFrame, **series: Any) -> DataFrameType:
         df = df if cls.__data_object__["unsafe"] else pd.DataFrame(df)
-        for col, values in series.items():
-            df[col] = values
-        obj = cls(**df._series)  # pylint: disable=protected-access
+        # for col, values in series.items():
+        #     df[col] = values
+        obj = cls(**{**df._series, **series})  # pylint: disable=protected-access
         return obj  # type: ignore
-    
+
     @classmethod
-    def from_array(cls, array: np.array) -> DataFrameType:
-        return cls.from_df(
-            pd.DataFrame(
-                array, columns=cls.__dataframe__.columns
-            )
-        )
+    def from_array(cls, array: np.ndarray) -> DataFrameType:
+        return cls.from_df(pd.DataFrame(array, columns=cls.__dataframe__.columns))
 
     @classmethod
     def from_dataobjects(cls, items: Iterator[DataObject]) -> DataFrameType:
-        return cls.from_df(
-            pd.DataFrame(
-                asdict(item) for item in items
-            )
-        )
+        return cls.from_df(pd.DataFrame(asdict(item) for item in items))  # type: ignore
 
     @classmethod
     def _from_df_unsafe(cls, df: pd.DataFrame, **series: pd.Series) -> DataFrameType:
@@ -119,7 +116,6 @@ class DataFrameMixin(Generic[DataFrameType]):
     def __getitem__(self, key) -> "DataFrameType":
         return self.from_df(self.__df[key])
 
-
     def to_dataobjects(self) -> List[DataObject]:
         return [
             self.__dataframe__.serialized_type(**fields)
@@ -127,10 +123,14 @@ class DataFrameMixin(Generic[DataFrameType]):
         ]
 
     def to_json(self, *args, **kwargs) -> str:
-        raise NotImplemented("Dataframe must be used inside `@dataobject(unsafe=True)` to be used as an output")
+        raise NotImplemented(  # type: ignore
+            "Dataframe must be used inside `@dataobject(unsafe=True)` to be used as an output"
+        )
 
     def to_dict(self, *args, **kwargs) -> Dict[str, Any]:
-        raise NotImplemented("Dataframe must be used inside `@dataobject(unsafe=True)` to be used as an output")
+        raise NotImplemented(  # type: ignore
+            "Dataframe must be used inside `@dataobject(unsafe=True)` to be used as an output"
+        )
 
     @classmethod
     def from_json(cls, *args, **kwargs) -> DataObject:
@@ -143,18 +143,19 @@ class DataFrameMixin(Generic[DataFrameType]):
         **kwargs,
     ) -> DataObject:
         return cls.__dataframe__.serialized_type.from_dict(*args, **kwargs)
-        
 
     @classmethod
     def json_schema(cls, *args, **kwargs) -> Dict[str, Any]:
-        schema = cls.__dataframe__.serialized_type.json_schema(*args, **kwargs)
-        schema[cls.__name__] = schema[cls.__dataframe__.serialized_type.__name__]
-        return schema
+        if cls.__data_object__["schema"]:
+            schema = cls.__dataframe__.serialized_type.json_schema(*args, **kwargs)
+            schema[cls.__name__] = schema[cls.__dataframe__.serialized_type.__name__]
+            return schema
+        return {}
 
-    def event_id(*args, **kwargs) -> None:
+    def event_id(*args, **kwargs) -> str:
         return ""
 
-    def event_ts(*args, **kwargs) -> None:
+    def event_ts(*args, **kwargs) -> datetime:
         return datetime.now(tz=timezone.utc)
 
     def __getattribute__(self, name: str) -> Any:
@@ -202,10 +203,7 @@ def dataframe(
         return cls
 
     def add_dataframe_metadata(cls):
-        serialized_fiels = [
-            (field.name, field.type)
-            for field in fields(cls)
-        ]
+        serialized_fiels = [(field.name, field.type) for field in fields(cls)]
         serialized_type = make_dataclass(cls.__name__ + "_", serialized_fiels)
         serialized_type = dataobject(serialized_type, unsafe=True)
 

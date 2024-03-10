@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import List, Optional
+
 from hopeit.dataframes import dataframe, dataframeobject
 from hopeit.dataobjects import dataobject
 
