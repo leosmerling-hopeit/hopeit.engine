@@ -24,23 +24,30 @@ class DatasetFsStorage(Generic[DataFrameType]):
 
     async def save(self, dataframe: DataFrameType) -> Dataset:
         datatype = type(dataframe)
-        path = self.base_path / _get_partition_key(self.partition_dateformat)
+        partition_key = _get_partition_key(self.partition_dateformat)
+        path = self.base_path / partition_key
+        key = f"{datatype.__qualname__.lower()}_{uuid4()}.parquet"
         os.makedirs(path.resolve().as_posix(), exist_ok=True)
-        location = path / f"{datatype.__qualname__.lower()}_{uuid4()}.parquet"
+        location = path / key
+
         async with aiofiles.open(location, "wb") as f:
             await f.write(dataframe._df.to_parquet(engine="pyarrow"))
 
-        dataset = Dataset(
+        # data = io.BytesIO(dataframe._df.to_parquet(engine="pyarrow"))
+        # location = await self.fs_storage.store_file(file_name=key, value=data)
+        # partition_key = self.fs_storage.partition_key(location)
+
+        return Dataset(
             protocol=f"{__name__}.DatasetFsStorage",
-            location=location.as_posix(),
+            partition_key=partition_key,
+            key=key,
             datatype=f"{datatype.__module__}.{datatype.__qualname__}",
         )
-        return dataset
 
-    @staticmethod
-    async def load(dataset: Dataset) -> EventPayloadType:
+    async def load(self, dataset: Dataset) -> EventPayloadType:
         datatype: Type[DataFrameType] = find_dataframe_type(dataset.datatype)
-        async with aiofiles.open(dataset.location, "rb") as f:
+        location = self.base_path / dataset.partition_key / dataset.key
+        async with aiofiles.open(location, "rb") as f:
             df = pd.read_parquet(io.BytesIO(await f.read()), engine="pyarrow")
             return datatype._from_df(df)
 
