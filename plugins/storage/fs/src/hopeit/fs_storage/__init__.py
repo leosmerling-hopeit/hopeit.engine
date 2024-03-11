@@ -5,6 +5,7 @@ Storage/persistence asynchronous stores and gets dataobjects from filesystem.
 
 from dataclasses import dataclass
 from io import IOBase
+import io
 import os
 import shutil
 from glob import glob
@@ -110,7 +111,7 @@ class FileStorage(Generic[DataObject]):
         partition_key: Optional[str] = None,
     ) -> bytes:
         """
-        Retrieves the file-like object for the specified file.
+        Retrieves bytes for the specified file_name.
 
         :param file_name: str
         :param parition_key: Optional[str] partition path to be appended to base path
@@ -136,12 +137,12 @@ class FileStorage(Generic[DataObject]):
             os.makedirs(path.resolve().as_posix(), exist_ok=True)
         return await self._save_file(payload_str, path=path, file_name=key + SUFFIX)
 
-    async def store_file(self, file_name: str, value) -> str:
+    async def store_file(self, file_name: str, value: io.BytesIO) -> str:
         """
         Stores a file-like object.
 
         :param file_name: str
-        :return: an async context manager that yields a file-like object.
+        :return: str file location
 
         """
         path = self.path
