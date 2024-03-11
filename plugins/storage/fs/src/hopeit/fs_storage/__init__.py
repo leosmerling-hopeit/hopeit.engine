@@ -4,12 +4,13 @@ Storage/persistence asynchronous stores and gets dataobjects from filesystem.
 """
 
 from dataclasses import dataclass
+from io import IOBase
 import os
 import shutil
 from glob import glob
 from pathlib import Path
 import uuid
-from typing import Optional, Type, Generic, List
+from typing import IO, AsyncGenerator, Optional, Type, Generic, List
 
 import aiofiles  # type: ignore
 from aiofiles.base import AiofilesContextManager
@@ -134,7 +135,7 @@ class FileStorage(Generic[DataObject]):
             os.makedirs(path.resolve().as_posix(), exist_ok=True)
         return await self._save_file(payload_str, path=path, file_name=key + SUFFIX)
 
-    def store_file(self, file_name: str) -> AiofilesContextManager:
+    async def store_file(self, file_name: str, value) -> str:
         """
         Stores a file-like object.
 
@@ -143,11 +144,15 @@ class FileStorage(Generic[DataObject]):
 
         """
         path = self.path
+        partition_key = ""
         if self.partition_dateformat:
-            path = path / get_partition_key(file_name, self.partition_dateformat)
+            partition_key = get_partition_key(file_name, self.partition_dateformat)
+            path = path / partition_key
             os.makedirs(path.resolve().as_posix(), exist_ok=True)
         file_path = path / file_name
-        return aiofiles.open(file_path, "wb")
+        async with aiofiles.open(file_path, "wb") as f:
+            await f.write(value.read())
+            return partition_key + file_name
 
     async def list_objects(self, wildcard: str = "*") -> List[ItemLocator]:
         """
@@ -173,19 +178,17 @@ class FileStorage(Generic[DataObject]):
         for key in keys:
             await aiofiles.os.remove(path / (key + SUFFIX))
 
-    def get_file_locator(self, path: str) -> FileLocator:
+    def partition_key(self, path: str) -> str:
         """
         Get the file locator for a given item path.
 
-        :param item_path: str, The path of the item
-        Returns: FileLocator: A FileLocator object containing the `file_name` and `partition_key`
+        :param path: str, The path of the item
         """
         partition_key = ""
         dir_name = os.path.dirname(path)
-        file_name = os.path.basename(path)
         if self.partition_dateformat:
             partition_key = dir_name.replace(self.path.as_posix(), "", 1).lstrip("/")
-        return FileLocator(file_name, partition_key)
+        return partition_key
 
     @staticmethod
     async def _load_file(*, path: Path, file_name: str) -> Optional[str]:
