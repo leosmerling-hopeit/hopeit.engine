@@ -103,12 +103,12 @@ class FileStorage(Generic[DataObject]):
             return Payload.from_json(payload_str, datatype)
         return None
 
-    def get_file(
+    async def get_file(
         self,
         file_name: str,
         *,
         partition_key: Optional[str] = None,
-    ) -> AiofilesContextManager:
+    ) -> bytes:
         """
         Retrieves the file-like object for the specified file.
 
@@ -118,7 +118,8 @@ class FileStorage(Generic[DataObject]):
         """
         path = self.path / partition_key if partition_key else self.path
         file_path = path / file_name
-        return aiofiles.open(file_path, "rb")
+        async with aiofiles.open(file_path, "rb") as file:
+            return await file.read()
 
     async def store(self, key: str, value: DataObject) -> str:
         """

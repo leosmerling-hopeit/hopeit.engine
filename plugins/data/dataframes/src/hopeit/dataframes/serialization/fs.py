@@ -43,11 +43,9 @@ class DatasetFsStorage(Generic[DataFrameType]):
 
     async def load(self, dataset: Dataset) -> DataFrameType:
         datatype = find_dataframe_type(dataset.datatype)
-        async with self.store.get_file(
-            file_name=dataset.key, partition_key=dataset.partition_key
-        ) as f:
-            df = pd.read_parquet(io.BytesIO(await f.read()), engine="pyarrow")
-            return datatype._from_df(df)
+        data = await self.store.get_file(file_name=dataset.key, partition_key=dataset.partition_key)
+        df = pd.read_parquet(io.BytesIO(data), engine="pyarrow")
+        return datatype._from_df(df)
 
     async def ser_wrapper(
         self,
