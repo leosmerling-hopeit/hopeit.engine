@@ -4,18 +4,16 @@ Storage/persistence asynchronous stores and gets dataobjects from filesystem.
 """
 
 from dataclasses import dataclass
-from io import IOBase
 import io
 import os
 import shutil
 from glob import glob
 from pathlib import Path
 import uuid
-from typing import IO, AsyncGenerator, Optional, Type, Generic, List
+from typing import Optional, Type, Generic, List
 
-import aiofiles  # type: ignore
-from aiofiles.base import AiofilesContextManager
-import aiofiles.os  # type: ignore
+import aiofiles
+import aiofiles.os
 
 from hopeit.dataobjects import dataobject, DataObject
 from hopeit.dataobjects.payload import Payload
@@ -34,10 +32,10 @@ class FileStorageSettings:
 
     :field: path, str: base path in file systems here data is saved
     :field: partition_dateformat, optional str: date format to be used to prefix file name in order
-        to parition saved files to different subfolders based on event_ts(). i.e. "%Y/%m/%d"
+        to partition saved files to different subfolders based on event_ts(). i.e. "%Y/%m/%d"
         will store each files in a folder `base_path/year/month/day/`
     :field: flush_seconds, float: number of seconds to trigger a flush event to save all current
-        buffered partitions. Default 0 means flish is not triggered by time.
+        buffered partitions. Default 0 means flush is not triggered by time.
     :field: fllush_max_size: max number of elements to keep in a partition before forcing a flush.
         Default 1. A value of 0 will disable flushing by partition size.
     """
@@ -95,7 +93,7 @@ class FileStorage(Generic[DataObject]):
 
         :param key: str
         :param datatype: dataclass implementing @dataobject (@see DataObject)
-        :param parition_key: partition path to be appended to base path
+        :param partition_key: partition path to be appended to base path
         :return: instance of datatype or None if not found
         """
         path = self.path / partition_key if partition_key else self.path
@@ -114,8 +112,8 @@ class FileStorage(Generic[DataObject]):
         Retrieves bytes for the specified file_name.
 
         :param file_name: str
-        :param parition_key: Optional[str] partition path to be appended to base path
-        :return: an async context manager that yields a file-like object.
+        :param partition_key: Optional[str] partition path to be appended to base path
+        :return: bytes, the content of the file as bytes
         """
         path = self.path / partition_key if partition_key else self.path
         file_path = path / file_name
@@ -142,25 +140,25 @@ class FileStorage(Generic[DataObject]):
         Stores a file-like object.
 
         :param file_name: str
+        :param value: io.BytesIO, the file-like object to store
         :return: str file location
-
         """
         path = self.path
         partition_key = ""
         if self.partition_dateformat:
-            partition_key = get_partition_key(file_name, self.partition_dateformat)
+            partition_key = get_partition_key(None, self.partition_dateformat)
             path = path / partition_key
             os.makedirs(path.resolve().as_posix(), exist_ok=True)
         file_path = path / file_name
         async with aiofiles.open(file_path, "wb") as f:
             await f.write(value.read())
-            return partition_key + file_name
+            return str(path / file_name)
 
     async def list_objects(self, wildcard: str = "*") -> List[ItemLocator]:
         """
         Retrieves list of objects keys from the file storage
 
-        :param wilcard: allow filter the listing of objects
+        :param wildcard: allow filter the listing of objects
         :return: List of objects key
         """
         base_path = str(self.path.resolve())
@@ -182,9 +180,10 @@ class FileStorage(Generic[DataObject]):
 
     def partition_key(self, path: str) -> str:
         """
-        Get the file locator for a given item path.
+        Get the partition key for a given path.
 
-        :param path: str, The path of the item
+        :param path: str
+        :return str, the extracted partition key.
         """
         partition_key = ""
         dir_name = os.path.dirname(path)
@@ -223,10 +222,11 @@ class FileStorage(Generic[DataObject]):
 
     def _get_item_locator(self, item_path: str, n_part_comps: int) -> ItemLocator:
         comps = item_path.split("/")
-        if self.partition_dateformat:
-            partition_key = "/".join(comps[-n_part_comps - 1 : -1])
-        else:
-            partition_key = None
+        partition_key = (
+            "/".join(comps[-n_part_comps - 1: -1])
+            if self.partition_dateformat
+            else None
+        )
         return ItemLocator(
             item_id=comps[-1][: -len(SUFFIX)], partition_key=partition_key
         )
