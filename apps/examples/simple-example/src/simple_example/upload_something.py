@@ -17,6 +17,7 @@ from hopeit.dataobjects.payload import Payload
 from hopeit.toolkit.web import save_multipart_attachment
 
 from model import Something
+from pydantic import BaseModel
 
 
 __steps__ = ['create_items']
@@ -37,8 +38,7 @@ logger, extra = app_extra_logger()
 
 
 @dataobject
-@dataclass
-class UploadedFile:
+class UploadedFile(BaseModel):
     file_id: str
     file_name: str
     saved_path: str
@@ -46,8 +46,7 @@ class UploadedFile:
 
 
 @dataobject
-@dataclass
-class FileUploadInfo:
+class FileUploadInfo(BaseModel):
     id: str
     user: str
     object: Something

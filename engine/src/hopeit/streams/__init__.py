@@ -6,14 +6,14 @@ import asyncio
 import os
 import socket
 from datetime import datetime, timezone
-from typing import Dict, List, Any, Union
-from dataclasses import dataclass
+from typing import Dict, Generic, List, Any, Union
 from importlib import import_module
 
 from hopeit.app.config import Compression, Serialization
-from hopeit.dataobjects import EventPayload
+from hopeit.dataobjects import DataObject, EventPayload
 from hopeit.server.config import AuthType, StreamsConfig
 from hopeit.server.logger import engine_logger, extra_logger
+from pydantic import BaseModel, ConfigDict
 
 logger = engine_logger()
 extra = extra_logger()
@@ -21,11 +21,12 @@ extra = extra_logger()
 __all__ = ["StreamEvent", "StreamManager", "stream_auth_info", "StreamOSError"]
 
 
-@dataclass
-class StreamEvent:
+class StreamEvent(BaseModel, Generic[DataObject]):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     msg_internal_id: bytes
     queue: str
-    payload: EventPayload
+    payload: DataObject
     track_ids: Dict[str, str]
     auth_info: Dict[str, Any]
 

@@ -18,11 +18,11 @@ from hopeit.server.collector import Collector
 from hopeit.server.steps import SHUFFLE
 from hopeit.fs_storage import FileStorage, FileStorageSettings
 from model import ItemsInfo, Something, SomethingNotFound
+from pydantic import BaseModel
 
 
 @dataobject
-@dataclass
-class ItemsCollected:
+class ItemsCollected(BaseModel):
     """
     Collected items. Need a dataclass in order to publish to stream
     """

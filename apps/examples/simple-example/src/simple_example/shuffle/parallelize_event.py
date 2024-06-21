@@ -16,6 +16,7 @@ from hopeit.app.events import Spawn, SHUFFLE
 from hopeit.app.logger import app_extra_logger
 from hopeit.fs_storage import FileStorage, FileStorageSettings
 from model import Something, SomethingStored, Status, StatusType
+from pydantic import BaseModel
 
 logger, extra = app_extra_logger()
 
@@ -31,14 +32,12 @@ __api__ = event_api(
 
 
 @dataobject
-@dataclass
-class FirstPart:
+class FirstPart(BaseModel):
     data: Something
 
 
 @dataobject
-@dataclass
-class SecondPart:
+class SecondPart(BaseModel):
     data: Something
 
 

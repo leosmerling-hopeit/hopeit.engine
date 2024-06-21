@@ -2,9 +2,11 @@
 Config module: apps config data model and json loader
 """
 from copy import deepcopy
-from dataclasses import dataclass, field
+# from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, Optional, Type, Union, List, Generic
+from typing import Any, ClassVar, Dict, Optional, Type, Union, List, Generic
+
+from pydantic import BaseModel, Field
 
 from hopeit.dataobjects import EventPayloadType, dataobject
 from hopeit.dataobjects.payload import Payload
@@ -30,8 +32,7 @@ __all__ = ['AppDescriptor',
 
 
 @dataobject
-@dataclass
-class AppDescriptor:
+class AppDescriptor(BaseModel):
     """
     App descriptor
     """
@@ -80,8 +81,7 @@ class StreamQueue:
 
 
 @dataobject
-@dataclass
-class ReadStreamDescriptor:
+class ReadStreamDescriptor(BaseModel):
     """
     Configuration to read streams
 
@@ -102,7 +102,7 @@ class ReadStreamDescriptor:
     """
     name: str
     consumer_group: str
-    queues: List[str] = field(default_factory=StreamQueue.default_queues)
+    queues: List[str] = Field(default_factory=StreamQueue.default_queues)
 
 
 class StreamQueueStrategy(str, Enum):
@@ -119,8 +119,7 @@ class StreamQueueStrategy(str, Enum):
 
 
 @dataobject
-@dataclass
-class WriteStreamDescriptor:
+class WriteStreamDescriptor(BaseModel):
     """
     Configuration to publish messages to a stream
 
@@ -140,13 +139,12 @@ class WriteStreamDescriptor:
         `StreamQueueStrategy.PROPAGATE` must be explicitly specified.
     """
     name: str
-    queues: List[str] = field(default_factory=StreamQueue.default_queues)
+    queues: List[str] = Field(default_factory=StreamQueue.default_queues)
     queue_strategy: StreamQueueStrategy = StreamQueueStrategy.DROP
 
 
 @dataobject
-@dataclass
-class EventLoggingConfig:
+class EventLoggingConfig(BaseModel):
     """
     Logging configuration specific for the event
 
@@ -162,8 +160,8 @@ class EventLoggingConfig:
             'event_id', event id from @data_event
             'read_ts': uct time when message was consumed from stream
     """
-    extra_fields: List[str] = field(default_factory=list)
-    stream_fields: List[str] = field(default_factory=list)
+    extra_fields: List[str] = Field(default_factory=list)
+    stream_fields: List[str] = Field(default_factory=list)
 
     def __post_init__(self):
         if len(self.stream_fields) == 0:
@@ -204,8 +202,7 @@ class Serialization(str, Enum):
 
 
 @dataobject
-@dataclass
-class EventStreamConfig:
+class EventStreamConfig(BaseModel):
     """
     Stream configuration for STREAM events
     :field timeout: float, timeout for stream processing im seconds. If timeout is exceeded event
@@ -235,11 +232,10 @@ class EventStreamConfig:
 
 
 @dataobject
-@dataclass
-class EventSettings(Generic[EventPayloadType]):
+class EventSettings(BaseModel, Generic[EventPayloadType]):
     """
     Event execution configuration, used to parse `settings` entries in app config file where the key
-    is the event name.
+    is the event name
 
     :field response_timeout: float, default 60.0: seconds to timeout waiting for event execution
         when invoked externally .i.e. GET or POST events. If exceeded, Timed Out response will be returned.
@@ -249,9 +245,9 @@ class EventSettings(Generic[EventPayloadType]):
     :field stream: EventStreamConfig, configuration for stream processing for this particular event
     """
     response_timeout: float = 60.0
-    logging: EventLoggingConfig = field(default_factory=EventLoggingConfig)
-    stream: EventStreamConfig = field(default_factory=EventStreamConfig)
-    extras: Dict[str, Any] = field(default_factory=dict)
+    logging: EventLoggingConfig = Field(default_factory=EventLoggingConfig)
+    stream: EventStreamConfig = Field(default_factory=EventStreamConfig)
+    extras: Dict[str, Any] = Field(default_factory=dict)
 
     def __call__(self, *, key: str = '_', datatype: Type[EventPayloadType]) -> EventPayloadType:
         return Payload.from_obj(self.extras.get(key, {}), datatype=datatype)
@@ -278,8 +274,7 @@ class EventConnectionType(str, Enum):
 
 
 @dataobject
-@dataclass
-class EventConnection:
+class EventConnection(BaseModel):
     """
     EventConnection: describes dependencies on this event when calling
     event on apps configured in `app_connections` sections. Only events
@@ -296,8 +291,7 @@ class EventConnection:
 
 
 @dataobject
-@dataclass
-class EventDescriptor:
+class EventDescriptor(BaseModel):
     """
     Event Descriptor: configures event implementation
 
@@ -328,18 +322,18 @@ class EventDescriptor:
         `payload: DataObject` argument, then a list of full qualified datatypes must be specified here.
     :field: group, str: group name, if none is assigned it is automatically assigned as 'DEFAULT'.
     """
-    DEFAULT_GROUP = 'DEFAULT'
+    DEFAULT_GROUP: ClassVar[str] = 'DEFAULT'
 
     type: EventType
     plug_mode: EventPlugMode = EventPlugMode.STANDALONE
     route: Optional[str] = None
     impl: Optional[str] = None
-    connections: List[EventConnection] = field(default_factory=list)
+    connections: List[EventConnection] = Field(default_factory=list)
     read_stream: Optional[ReadStreamDescriptor] = None
     write_stream: Optional[WriteStreamDescriptor] = None
-    auth: List[AuthType] = field(default_factory=list)
-    setting_keys: List[str] = field(default_factory=list)
-    dataobjects: List[str] = field(default_factory=list)
+    auth: List[AuthType] = Field(default_factory=list)
+    setting_keys: List[str] = Field(default_factory=list)
+    dataobjects: List[str] = Field(default_factory=list)
     group: str = DEFAULT_GROUP
 
     def __post_init__(self):
@@ -349,8 +343,7 @@ class EventDescriptor:
 
 
 @dataobject
-@dataclass
-class AppEngineConfig:
+class AppEngineConfig(BaseModel):
     """
     Engine specific parameters shared among events
 
@@ -367,7 +360,7 @@ class AppEngineConfig:
     read_stream_interval: int = 1000
     default_stream_compression: Compression = Compression.LZ4
     default_stream_serialization: Serialization = Serialization.JSON_BASE64
-    track_headers: List[str] = field(default_factory=list)
+    track_headers: List[str] = Field(default_factory=list)
     cors_origin: Optional[str] = None
 
     def __post_init__(self):
@@ -379,8 +372,7 @@ class AppEngineConfig:
 
 
 @dataobject
-@dataclass
-class AppConnection:
+class AppConnection(BaseModel):
     """
     AppConnections: metadata to initialize app client in order to connect
     and issue requests to other running apps
@@ -401,19 +393,18 @@ class AppConnection:
 
 
 @dataobject
-@dataclass
-class AppConfig:
+class AppConfig(BaseModel):
     """
     App Configuration container
     """
     app: AppDescriptor
-    engine: AppEngineConfig = field(default_factory=AppEngineConfig)
-    app_connections: Dict[str, AppConnection] = field(default_factory=dict)
-    env: Env = field(default_factory=dict)
-    events: Dict[str, EventDescriptor] = field(default_factory=dict)
+    engine: AppEngineConfig = Field(default_factory=AppEngineConfig)
+    app_connections: Dict[str, AppConnection] = Field(default_factory=dict)
+    env: Env = Field(default_factory=dict)
+    events: Dict[str, EventDescriptor] = Field(default_factory=dict)
     server: Optional[ServerConfig] = None
-    plugins: List[AppDescriptor] = field(default_factory=list)
-    settings: AppSettings = field(default_factory=dict)
+    plugins: List[AppDescriptor] = Field(default_factory=list)
+    settings: AppSettings = Field(default_factory=dict)
     effective_settings: Optional[AppSettings] = None
 
     def app_key(self):
@@ -442,12 +433,12 @@ class AppConfig:
             settings_data = deepcopy(self.settings.get(event_name, {"stream": {}}))
             stream_settings.update(settings_data.get('stream', {}))
             settings_data['stream'] = stream_settings
-            settings = EventSettings.from_dict(settings_data, validate=True)
+            settings = Payload.from_obj(settings_data, datatype=EventSettings)
             if settings.stream.compression is None:
                 settings.stream.compression = self.engine.default_stream_compression
             if settings.stream.serialization is None:
                 settings.stream.serialization = self.engine.default_stream_serialization
-            self.effective_settings[event_name] = settings.to_dict()
+            self.effective_settings[event_name] = Payload.to_obj(settings)
 
     def _setup_event_extra_settings(self):
         """
@@ -476,7 +467,7 @@ def parse_app_config_json(config_json: str) -> AppConfig:
     """
     # effective_config_json = _replace_args(config_json)
     effective_config_json = replace_env_vars(config_json)
-    app_config = AppConfig.from_json(effective_config_json)  # type: ignore
+    app_config = Payload.from_json(effective_config_json, datatype=AppConfig)
     replace_config_args(
         parsed_config=app_config,
         config_classes=(
