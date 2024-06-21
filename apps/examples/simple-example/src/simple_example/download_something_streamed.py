@@ -9,12 +9,12 @@ from dataclasses import dataclass
 from hopeit.app.api import event_api
 from hopeit.app.context import EventContext, PostprocessHook
 from hopeit.dataobjects import BinaryDownload
+from pydantic import BaseModel
 
 __steps__ = ['get_streamed_data']
 
 
-@dataclass
-class SomeFile(BinaryDownload):
+class SomeFile(BaseModel, BinaryDownload):
     file_name: str
 
 

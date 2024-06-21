@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import List
 
 from hopeit.dataobjects import dataobject
+from pydantic import BaseModel
 
 __all__ = ['ErrorInfo',
            'format_exc',
@@ -15,8 +16,7 @@ __all__ = ['ErrorInfo',
 
 
 @dataobject
-@dataclass
-class ErrorInfo:
+class ErrorInfo(BaseModel):
     """
     Error information to be returned in failed responses
     """

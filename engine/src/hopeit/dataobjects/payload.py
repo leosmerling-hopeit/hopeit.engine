@@ -5,7 +5,8 @@ Payload tools to serialize and deserialze event payloads and responses, includin
 import json
 from typing import Type, Generic, Optional, Union
 
-from dataclasses_jsonschema import ValidationError
+from pydantic import RootModel, BaseModel, ValidationError
+# from dataclasses_jsonschema import ValidationError
 
 from hopeit.dataobjects import EventPayloadType
 
@@ -38,13 +39,9 @@ class Payload(Generic[EventPayloadType]):
         if datatype in _COLLECTION_TYPES:
             return datatype(json.loads(json_str))  # type: ignore
         try:
-            return datatype.from_json(json_str, validate=datatype.__data_object__['validate'])  # type: ignore
+            return datatype.model_validate_json(json_str, strict=datatype.__data_object__['validate'])
         except ValidationError as e:
             raise ValueError(f"Cannot read JSON: type={datatype} validation_error={str(e)}") from e
-        except Exception:
-            assert getattr(datatype, 'from_json'), \
-                f"{datatype} should be annotated with @dataobject"
-            raise  # Raises unexpected exceptions, if assert block does not catch missing @dataobject
 
     @staticmethod
     def from_obj(data: Union[dict, list],
@@ -74,10 +71,8 @@ class Payload(Generic[EventPayloadType]):
                     Payload.from_obj(v, item_datatype, key) for v in data
                 ])
             return datatype(data)  # type: ignore
-        assert getattr(datatype, 'from_dict'), \
-            f"{datatype} should be annotated with @dataobject"
         try:
-            return datatype.from_dict(data, validate=datatype.__data_object__['validate'])  # type: ignore
+            return datatype.model_validate(data, strict=datatype.__data_object__['validate'])
         except ValidationError as e:
             raise ValueError(f"Cannot read object: type={datatype} validation_error={str(e)}") from e
 
@@ -101,10 +96,8 @@ class Payload(Generic[EventPayloadType]):
             return "{" + ', '.join(
                 f'"{str(k)}": {Payload.to_json(item, key=None)}' for k, item in payload.items()
             ) + "}"
-        assert getattr(payload, 'to_json'), \
-            f"{type(payload)} should be annotated with @dataobject"
         try:
-            return payload.to_json(validate=payload.__data_object__['validate'])  # type: ignore
+            return payload.model_dump_json()
         except (ValidationError, AttributeError) as e:
             raise ValueError(f"Cannot convert to JSON: type={type(payload)} validation_error={str(e)}") from e
 
@@ -129,10 +122,8 @@ class Payload(Generic[EventPayloadType]):
             return [Payload.to_obj(v, key=None) for v in payload]
         if isinstance(payload, _MAPPING_TYPES):
             return {k: Payload.to_obj(v, key=None) for k, v in payload.items()}
-        assert getattr(payload, 'to_dict'), \
-            f"{type(payload)} should be annotated with @dataobject"
         try:
-            return payload.to_dict(validate=payload.__data_object__['validate'])  # type: ignore
+            return payload.model_dump()
         except (ValidationError, AttributeError) as e:
             raise ValueError(f"Cannot convert to dict: type={type(payload)} validation_error={str(e)}") from e
 

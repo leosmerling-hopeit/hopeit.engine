@@ -30,6 +30,21 @@
             "console": "integratedTerminal"
         },
         {
+            "name": "pydantic",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "hopeit.server.web",
+            "justMyCode": false,
+            "args": [
+                "--port=8020",
+                "--start-streams",
+                "--config-files=engine/config/dev-local.json,plugins/auth/basic-auth/config/plugin-config.json,apps/examples/simple-example/config/app-config.json",
+                "--api-auto=0.18;Simple Example;Simple Example OpenAPI specs"
+            ],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal"
+        },
+        {
             "name": "client-example",
             "type": "python",
             "request": "launch",

@@ -18,6 +18,7 @@ import aiofiles.os
 from hopeit.dataobjects import dataobject, DataObject
 from hopeit.dataobjects.payload import Payload
 from hopeit.fs_storage.partition import get_file_partition_key, get_partition_key
+from pydantic import BaseModel
 
 __all__ = ["FileStorage", "FileStorageSettings"]
 
@@ -25,8 +26,7 @@ SUFFIX = ".json"
 
 
 @dataobject
-@dataclass
-class FileStorageSettings:
+class FileStorageSettings(BaseModel):
     """
     File storage plugin config
 
@@ -47,8 +47,7 @@ class FileStorageSettings:
 
 
 @dataobject
-@dataclass
-class ItemLocator:
+class ItemLocator(BaseModel):
     item_id: str
     partition_key: Optional[str] = None
 

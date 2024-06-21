@@ -91,6 +91,7 @@ from hopeit.dataobjects import DataObject, dataobject
 from hopeit.dataobjects.payload import Payload
 from hopeit.fs_storage import FileStorageSettings
 from hopeit.fs_storage.partition import get_partition_key
+from pydantic import BaseModel
 
 logger, extra = app_extra_logger()
 
@@ -109,8 +110,7 @@ buffer_lock: asyncio.Lock = asyncio.Lock()
 
 
 @dataobject
-@dataclass
-class FlushSignal:
+class FlushSignal(BaseModel):
     partition_key: str
 
 

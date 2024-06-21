@@ -22,9 +22,10 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
-from typing import TypeVar, Optional, Union, Any
+from typing import ClassVar, TypeVar, Optional, Union, Any
 
 from dataclasses_jsonschema import JsonSchemaMixin
+from pydantic import BaseModel
 
 __all__ = ['EventPayload',
            'EventPayloadType',
@@ -35,8 +36,7 @@ __all__ = ['EventPayload',
            'payload']
 
 
-@dataclass
-class StreamEventParams:
+class StreamEventParams(BaseModel):
     """
     Helper class used to access attributes in @dataobject
     decorated objects, based on dot notation expressions
@@ -76,7 +76,7 @@ class StreamEventMixin:
         return None
 
 
-DataObject = TypeVar("DataObject", bound=JsonSchemaMixin)
+DataObject = TypeVar("DataObject", bound=BaseModel)
 EventPayload = Union[str, int, float, bool, dict, set, list, DataObject]
 EventPayloadType = TypeVar("EventPayloadType")  # pylint: disable=invalid-name
 
@@ -99,7 +99,7 @@ class BinaryDownload:
 
     This way, the  type can be used in event API specification as response type.
     """
-    content_type: str = "application/octet-stream"
+    content_type: ClassVar[str] = "application/octet-stream"
 
 
 def dataobject(
@@ -166,9 +166,10 @@ def dataobject(
     """
 
     def wrap(cls):
-        amended_class = _add_jsonschema_support(cls)
+        # amended_class = _add_jsonschema_support(cls)
+        amended_class = cls
         setattr(amended_class, '__data_object__', {'unsafe': unsafe, 'validate': validate, 'schema': schema})
-        setattr(amended_class, '__stream_event__', StreamEventParams(event_id, event_ts))
+        setattr(amended_class, '__stream_event__', StreamEventParams(event_id_expr=event_id, event_ts_expr=event_ts))
         setattr(amended_class, 'event_id', StreamEventMixin.event_id)
         setattr(amended_class, 'event_ts', StreamEventMixin.event_ts)
         return amended_class
@@ -178,15 +179,15 @@ def dataobject(
     return wrap(decorated_class)
 
 
-def _add_jsonschema_support(cls):
-    if hasattr(cls, '__data_object__'):
-        return cls
-    if hasattr(cls, '__annotations__') and hasattr(cls, '__dataclass_fields__'):
-        amended_class = type(cls.__name__,
-                             (JsonSchemaMixin,) + cls.__mro__,
-                             dict(cls.__dict__))
-        return amended_class
-    return cls
+# def _add_jsonschema_support(cls):
+#     if hasattr(cls, '__data_object__'):
+#         return cls
+#     if hasattr(cls, '__annotations__') and hasattr(cls, '__dataclass_fields__'):
+#         amended_class = type(cls.__name__,
+#                              (JsonSchemaMixin,) + cls.__mro__,
+#                              dict(cls.__dict__))
+#         return amended_class
+#     return cls
 
 
 def _binary_copy(payload: Any) -> Any:

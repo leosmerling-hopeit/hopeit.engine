@@ -6,19 +6,20 @@ Download image file. The PostprocessHook return the requested file as stream.
 from dataclasses import dataclass
 import os
 import shutil
+from typing import ClassVar
 
 from hopeit.dataobjects import BinaryDownload
 from hopeit.app.api import event_api
 from hopeit.app.logger import app_extra_logger
 from hopeit.app.context import EventContext, PostprocessHook
+from pydantic import BaseModel
 
 
 __steps__ = ['find_image']
 
 
-@dataclass
-class ImagePng(BinaryDownload):
-    content_type = 'image/png'
+class ImagePng(BaseModel, BinaryDownload):
+    content_type: ClassVar[str] = 'image/png'
     file_name: str
     file_path: str
 
